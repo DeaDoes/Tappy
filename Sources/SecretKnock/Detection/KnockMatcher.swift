@@ -1,0 +1,25 @@
+import Foundation
+
+enum KnockMatcher {
+    static func matches(_ incoming: KnockPattern, against saved: KnockPattern, tolerance: Double = 0.40) -> Bool {
+        guard incoming.intervals.count == saved.intervals.count else { return false }
+        // Single-tap pattern has no rhythm to compare — matching tap count is enough.
+        if saved.intervals.isEmpty { return true }
+
+        let savedRatios = ratios(of: saved.intervals)
+        let incomingRatios = ratios(of: incoming.intervals)
+
+        return zip(savedRatios, incomingRatios).allSatisfy { s, i in
+            abs(s - i) / max(s, 0.001) <= tolerance
+        }
+    }
+
+    // Normalize each interval by the average, not the first — a noisy first
+    // knock shouldn't skew the whole comparison. Scale-invariant: knocking the
+    // same rhythm faster or slower still matches, which is the intended UX.
+    private static func ratios(of intervals: [Double]) -> [Double] {
+        let mean = intervals.reduce(0, +) / Double(intervals.count)
+        guard mean > 0 else { return intervals }
+        return intervals.map { $0 / mean }
+    }
+}
