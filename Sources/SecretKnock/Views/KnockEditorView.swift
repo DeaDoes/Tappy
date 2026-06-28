@@ -5,42 +5,96 @@ struct KnockEditorView: View {
     var existing: KnockMapping?
     let onDone: () -> Void
 
-    @State private var step: Step = .record
+    @State private var step: Step
     @State private var pattern: KnockPattern?
     @State private var action: KnockAction?
-    @State private var name: String = ""
+    @State private var name: String
 
-    enum Step { case record, action, name }
+    enum Step { case edit, record, action, name }
+
+    init(config: AppConfig, existing: KnockMapping?, onDone: @escaping () -> Void) {
+        self.config = config
+        self.existing = existing
+        self.onDone = onDone
+        _step = State(initialValue: existing == nil ? .record : .edit)
+        _pattern = State(initialValue: existing?.pattern)
+        _action = State(initialValue: existing?.action)
+        _name = State(initialValue: existing?.name ?? "")
+    }
 
     var body: some View {
         VStack {
             switch step {
+            case .edit:
+                editForm
             case .record:
-                PatternRecorderView(config: config) { p in
+                PatternRecorderView { p in
                     pattern = p
-                    step = .action
+                    step = existing == nil ? .action : .edit
                 }
             case .action:
                 ActionPickerView { a in
                     action = a
-                    name = existing?.name ?? ""
-                    step = .name
+                    if existing == nil, name.isEmpty { name = defaultName(for: a) }
+                    step = existing == nil ? .name : .edit
                 }
             case .name:
                 VStack(spacing: 16) {
                     Text("Name this knock").font(.headline)
-                    TextField("e.g. Open Brave", text: $name)
-                        .textFieldStyle(.roundedBorder)
+                    TextField("e.g. Open Brave", text: $name).textFieldStyle(.roundedBorder)
                     Button("Save") { save() }
                 }
-                .padding()
-                .frame(width: 300)
+                .padding().frame(width: 300)
             }
         }
-        // Suppress matching/actions for the whole time the editor is open,
-        // and guarantee it's turned back on when the editor closes.
-        .onAppear { KnockDetectionEngine.shared.isRecordingMode = true }
-        .onDisappear { KnockDetectionEngine.shared.isRecordingMode = false }
+    }
+
+    private var editForm: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Edit knock").font(.headline)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Name").font(.caption).foregroundStyle(.secondary)
+                TextField("Name", text: $name).textFieldStyle(.roundedBorder)
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Opens").font(.caption).foregroundStyle(.secondary)
+                    Text(action.map(actionLabel) ?? "Not set")
+                }
+                Spacer()
+                Button("Change") { step = .action }
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Rhythm").font(.caption).foregroundStyle(.secondary)
+                    Text("\(pattern?.tapCount ?? 0) taps")
+                }
+                Spacer()
+                Button("Re-record") { step = .record }
+            }
+
+            Divider()
+            HStack {
+                Spacer()
+                Button("Save") { save() }.disabled(pattern == nil || action == nil)
+            }
+        }
+        .padding(20).frame(width: 340)
+    }
+
+    private func defaultName(for action: KnockAction) -> String {
+        "Open \(actionLabel(action))"
+    }
+
+    private func actionLabel(_ action: KnockAction) -> String {
+        switch action {
+        case .openApp(let id): return id.components(separatedBy: ".").last ?? id
+        case .openFile(let url): return url.lastPathComponent
+        case .openURL(let url): return url.host ?? url.absoluteString
+        }
     }
 
     private func save() {

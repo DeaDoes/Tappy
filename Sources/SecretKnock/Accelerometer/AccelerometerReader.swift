@@ -7,13 +7,19 @@ import AVFoundation
 class AccelerometerReader: AccelerometerReaderProtocol {
     private let audioEngine = AVAudioEngine()
     private var baseline: Float = 0.0001   // slow-moving background loudness
+    private var startTime = Date()
 
     // ponytail: calibration knob for the physical world — tune per mic/desk.
     private let onsetRatioMin: Float = 3.0 // a knock must be 3x louder than background
 
     func start(interval: TimeInterval, handler: @escaping (AccelerationSample) -> Void) {
+        startTime = Date()
         let input = audioEngine.inputNode
         let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            print("No usable audio input")
+            return
+        }
 
         input.installTap(onBus: 0, bufferSize: 512, format: format) { [weak self] buffer, _ in
             guard let self, let channel = buffer.floatChannelData else { return }
@@ -27,8 +33,14 @@ class AccelerometerReader: AccelerometerReaderProtocol {
             let onset = rms / (self.baseline + 1e-6)            // how sudden vs background
             self.baseline = self.baseline * 0.97 + rms * 0.03   // update slowly
 
+            // Live level for the tuning meter (raw, ungated).
+            AudioMeter.shared.report(Double(rms) * 10)
+
             // Only a sudden impulse counts; sustained sound won't out-pace baseline.
-            let score = onset > self.onsetRatioMin ? Double(rms) * 10 : 0
+            // Skip the first moments so baseline settles, or quiet ambient reads
+            // as a "spike" against a near-zero background.
+            let warming = Date().timeIntervalSince(self.startTime) < 0.6
+            let score = (!warming && onset > self.onsetRatioMin) ? Double(rms) * 10 : 0
 
             DispatchQueue.main.async {
                 handler(AccelerationSample(x: score, y: 0, z: 0, timestamp: Date()))

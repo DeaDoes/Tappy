@@ -10,7 +10,7 @@ class KnockDetectionEngine {
     // ponytail: 0.2s refractory + hysteresis below = one knock counts once even as it rings
     private let minTapInterval: TimeInterval = 0.2
     // Wait this long after the last tap before deciding which knock it was.
-    private let settleDelay: TimeInterval = 0.9
+    private let settleDelay: TimeInterval = 0.65
     private var settleWork: DispatchWorkItem?
     private var aboveThreshold = false
     var isRecordingMode = false

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import AVFoundation
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
@@ -9,10 +10,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        killOlderInstances()
+        // If another copy is already running, bow out quietly. We never kill it —
+        // terminating other apps would demand the scary "App Management" permission.
+        if let existing = otherRunningInstance() {
+            existing.activate(options: [])
+            NSApp.terminate(nil)
+            return
+        }
+        // Menu-bar-only, explicitly — don't depend on Info.plist's LSUIElement,
+        // which SwiftPM doesn't embed. Settings temporarily flips this to .regular.
+        NSApp.setActivationPolicy(.accessory)
         setupStatusBar()
         engine = KnockDetectionEngine.shared
-        engine.start()
+        startListeningWhenMicAllowed()
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(openSettings),
@@ -26,12 +36,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func killOlderInstances() {
+    // Knock detection needs the mic. Ask once; if denied, tell the user where
+    // to fix it instead of silently doing nothing.
+    private func startListeningWhenMicAllowed() {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            engine.start()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted { self?.engine.start() } else { self?.showMicDeniedAlert() }
+                }
+            }
+        default:
+            showMicDeniedAlert()
+        }
+    }
+
+    private func showMicDeniedAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Microphone access needed"
+        alert.informativeText = "Tappy listens for your knock through the microphone. Enable it in System Settings → Privacy & Security → Microphone, then reopen Tappy."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Later")
+        NSApp.setActivationPolicy(.regular)
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+            NSWorkspace.shared.open(url)
+        }
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func otherRunningInstance() -> NSRunningApplication? {
         // ponytail: match by binary path, not bundleID (nil for SwiftPM exe → would match system apps)
         let me = NSRunningApplication.current
-        NSWorkspace.shared.runningApplications
-            .filter { $0 != me && $0.executableURL == me.executableURL }
-            .forEach { $0.forceTerminate() }
+        return NSWorkspace.shared.runningApplications.first {
+            $0 != me && $0.executableURL == me.executableURL
+        }
     }
 
     private func setupStatusBar() {

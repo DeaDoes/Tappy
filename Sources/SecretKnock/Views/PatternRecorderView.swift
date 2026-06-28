@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct PatternRecorderView: View {
-    @ObservedObject var config: AppConfig
     @State private var recorder = KnockRecorder()
     @State private var tapCount = 0
     let onComplete: (KnockPattern) -> Void
@@ -16,7 +15,7 @@ struct PatternRecorderView: View {
                 if tapCount == 0 {
                     Text("Knock to start...").foregroundStyle(.secondary).font(.caption)
                 } else {
-                    ForEach(0..<tapCount, id: \.self) { _ in
+                    ForEach(Array(0..<tapCount), id: \.self) { _ in
                         Circle().frame(width: 12, height: 12)
                     }
                 }
