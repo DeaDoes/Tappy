@@ -63,7 +63,7 @@ class KnockDetectionEngine {
     private func evaluate() {
         let taps = recentTaps
         recentTaps = []
-        guard !taps.isEmpty else { return }
+        guard taps.count >= 2 else { return }
 
         let recorder = KnockRecorder()
         taps.forEach { recorder.recordTap(at: $0) }

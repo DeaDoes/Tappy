@@ -20,13 +20,8 @@ final class KnockMatcherTests: XCTestCase {
         XCTAssertFalse(KnockMatcher.matches(KnockPattern(intervals: [300, 150]), against: saved))
     }
 
-    func test_single_tap_matches_on_count() {
-        let oneTap = KnockPattern(intervals: [])
-        XCTAssertTrue(KnockMatcher.matches(oneTap, against: oneTap))
-    }
-
-    func test_single_tap_does_not_match_multi_tap() {
-        XCTAssertFalse(KnockMatcher.matches(KnockPattern(intervals: []), against: saved))
+    func test_empty_pattern_never_matches() {
+        XCTAssertFalse(KnockMatcher.matches(KnockPattern(intervals: []), against: KnockPattern(intervals: [])))
     }
 
     func test_same_rhythm_slower_still_matches() {

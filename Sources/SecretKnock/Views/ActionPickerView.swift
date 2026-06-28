@@ -45,28 +45,19 @@ struct ActionPickerView: View {
     }
 
     private func openAppPanel() {
-        // ponytail: accessory apps need .regular policy for panels to grab focus; restore after
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.allowedContentTypes = [.application]
-        let response = panel.runModal()
-        NSApp.setActivationPolicy(.accessory)
-        guard response == .OK, let url = panel.url,
+        guard panel.runModal() == .OK, let url = panel.url,
               let id = Bundle(url: url)?.bundleIdentifier else { return }
         picked = .openApp(bundleID: id)
     }
 
     private func openFilePanel() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
-        let response = panel.runModal()
-        NSApp.setActivationPolicy(.accessory)
-        guard response == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
         fileURL = url
         picked = .openFile(url)
     }

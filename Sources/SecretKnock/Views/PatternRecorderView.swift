@@ -23,7 +23,7 @@ struct PatternRecorderView: View {
             }
             .frame(height: 20)
 
-            Text(tapCount < 3 ? "Tip: 3+ taps make a real secret rhythm" : "Looks good")
+            Text(tapCount < 3 ? "Knock at least 3 times" : "Looks good")
                 .font(.caption).foregroundStyle(.secondary)
 
             HStack {
@@ -32,7 +32,7 @@ struct PatternRecorderView: View {
                 Button("Save Pattern") {
                     onComplete(recorder.finish())
                 }
-                .disabled(tapCount < 1)
+                .disabled(tapCount < 3)
             }
         }
         .padding()

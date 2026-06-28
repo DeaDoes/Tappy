@@ -63,13 +63,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.center()
             settingsWindow = window
         }
+        // Become a normal app while Settings is open so it gets a Dock icon,
+        // a Cmd-Tab entry, and reliably comes to the front.
+        NSApp.setActivationPolicy(.regular)
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // If the window closes while an editor was mid-record, make sure the
-    // engine is listening again — never leave it stuck in recording mode.
     func windowWillClose(_ notification: Notification) {
+        // Back to menu-bar-only, and never leave the engine stuck recording.
+        NSApp.setActivationPolicy(.accessory)
         KnockDetectionEngine.shared.isRecordingMode = false
     }
 }

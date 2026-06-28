@@ -2,9 +2,8 @@ import Foundation
 
 enum KnockMatcher {
     static func matches(_ incoming: KnockPattern, against saved: KnockPattern, tolerance: Double = 0.40) -> Bool {
-        guard incoming.intervals.count == saved.intervals.count else { return false }
-        // Single-tap pattern has no rhythm to compare — matching tap count is enough.
-        if saved.intervals.isEmpty { return true }
+        guard incoming.intervals.count == saved.intervals.count,
+              !saved.intervals.isEmpty else { return false }
 
         let savedRatios = ratios(of: saved.intervals)
         let incomingRatios = ratios(of: incoming.intervals)
