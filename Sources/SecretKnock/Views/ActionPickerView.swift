@@ -17,6 +17,9 @@ struct ActionPickerView: View {
                 ForEach(ActionType.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
+            // Switching tabs must drop the previous tab's selection, or "Next"
+            // stays enabled and saves the wrong action type for the shown tab.
+            .onChange(of: selectedType) { _ in picked = nil }
 
             switch selectedType {
             case .app:
@@ -28,7 +31,7 @@ struct ActionPickerView: View {
             case .url:
                 TextField("https://...", text: $urlString)
                     .onChange(of: urlString) { v in
-                        if let url = URL(string: v) { picked = .openURL(url) }
+                        picked = Self.normalizedURL(v).map(KnockAction.openURL)
                     }
             }
 
@@ -51,6 +54,19 @@ struct ActionPickerView: View {
         guard panel.runModal() == .OK, let url = panel.url,
               let id = Bundle(url: url)?.bundleIdentifier else { return }
         picked = .openApp(bundleID: id)
+    }
+
+    // Accept "example.com" by defaulting to https:// — a schemeless URL opens
+    // to nothing. Returns nil for blank input so "Next" stays disabled.
+    static func normalizedURL(_ raw: String) -> URL? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        // A scheme is a leading "word:" (https:, mailto:, file:). If absent,
+        // assume the web. ponytail: rare "host:port" with no scheme reads as a
+        // scheme; fine — nobody types a knock target that way.
+        let hasScheme = trimmed.range(of: "^[a-zA-Z][a-zA-Z0-9+.-]*:", options: .regularExpression) != nil
+        let withScheme = hasScheme ? trimmed : "https://\(trimmed)"
+        return URL(string: withScheme)
     }
 
     private func openFilePanel() {

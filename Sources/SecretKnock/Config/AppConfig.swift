@@ -9,12 +9,17 @@ class AppConfig: ObservableObject {
         didSet { UserDefaults.standard.set(!isFirstLaunch, forKey: "hasLaunched") }
     }
 
+    // While loading, the property didSets must not save — writing mappings would
+    // otherwise clobber the stored sensitivity with its default before we read it.
+    private var isLoading = false
+
     private init() {
         isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunched")
         load()
     }
 
     private func save() {
+        guard !isLoading else { return }
         if let d = try? JSONEncoder().encode(mappings) {
             UserDefaults.standard.set(d, forKey: "mappings")
         }
@@ -22,6 +27,8 @@ class AppConfig: ObservableObject {
     }
 
     private func load() {
+        isLoading = true
+        defer { isLoading = false }
         if let d = UserDefaults.standard.data(forKey: "mappings"),
            let m = try? JSONDecoder().decode([KnockMapping].self, from: d) {
             mappings = m

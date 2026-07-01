@@ -101,7 +101,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.center()
             settingsWindow = window
         }
         // Become a normal app while Settings is open so it gets a Dock icon,
@@ -109,6 +108,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        // SwiftUI settles the window's height one runloop tick after it shows,
+        // so center() must wait for that or it lands off-center on the stale size.
+        DispatchQueue.main.async { self.settingsWindow?.center() }
     }
 
     func windowWillClose(_ notification: Notification) {

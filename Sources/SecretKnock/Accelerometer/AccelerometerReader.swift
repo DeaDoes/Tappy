@@ -8,9 +8,15 @@ class AccelerometerReader: AccelerometerReaderProtocol {
     private let audioEngine = AVAudioEngine()
     private var baseline: Float = 0.0001   // slow-moving background loudness
     private var startTime = Date()
+    private var lpf: Float = 0             // low-pass state, carries across buffers
 
     // ponytail: calibration knob for the physical world — tune per mic/desk.
     private let onsetRatioMin: Float = 3.0 // a knock must be 3x louder than background
+    // A knock is a low-frequency desk thud; a clap/voice is sharp & broadband.
+    // Keep the lows, drop the highs, so claps stop false-firing.
+    // ponytail: one-pole LPF. ~0.15 ≈ a few-hundred-Hz cutoff at 44.1kHz. Raise
+    // toward 1.0 if real knocks feel muffled; lower if claps still trigger.
+    private let lpfAlpha: Float = 0.15
 
     func start(interval: TimeInterval, handler: @escaping (AccelerationSample) -> Void) {
         startTime = Date()
@@ -26,8 +32,13 @@ class AccelerometerReader: AccelerometerReaderProtocol {
             let count = Int(buffer.frameLength)
             guard count > 0 else { return }
 
+            // Low-pass each sample before measuring energy: a knock's low thud
+            // survives, a clap's high-frequency crack is smoothed away.
             var energy: Float = 0
-            for i in 0..<count { energy += channel[0][i] * channel[0][i] }
+            for i in 0..<count {
+                self.lpf += self.lpfAlpha * (channel[0][i] - self.lpf)
+                energy += self.lpf * self.lpf
+            }
             let rms = (energy / Float(count)).squareRoot()
 
             let onset = rms / (self.baseline + 1e-6)            // how sudden vs background

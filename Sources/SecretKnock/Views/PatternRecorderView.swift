@@ -36,6 +36,10 @@ struct PatternRecorderView: View {
         }
         .padding()
         .frame(width: 300)
+        // Hold the engine in recording mode so live taps only feed this recorder
+        // and don't also match+fire an existing saved knock while we record.
+        .onAppear { KnockDetectionEngine.shared.isRecordingMode = true }
+        .onDisappear { KnockDetectionEngine.shared.isRecordingMode = false }
         .onReceive(NotificationCenter.default.publisher(for: .knockDetected)) { _ in
             recorder.recordTap()
             tapCount += 1
