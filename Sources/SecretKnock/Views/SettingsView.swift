@@ -64,6 +64,12 @@ struct SettingsView: View {
 
             Divider()
 
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Allow shared rhythm", isOn: $config.allowSharedRhythm)
+                Text("Let one rhythm open several apps. Off: each rhythm can be used by only one knock.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+
             Toggle("Launch at login", isOn: launchAtLogin)
 
             HStack {

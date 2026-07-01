@@ -33,4 +33,24 @@ final class KnockMatcherTests: XCTestCase {
         // First gap long, rest short — a genuinely different pattern.
         XCTAssertFalse(KnockMatcher.matches(KnockPattern(intervals: [600, 150, 150]), against: saved))
     }
+
+    private func mapping(_ intervals: [Double], _ name: String) -> KnockMapping {
+        KnockMapping(name: name, pattern: KnockPattern(intervals: intervals), action: .openURL(URL(string: "https://a.com")!))
+    }
+
+    func test_clash_finds_similar_rhythm() {
+        let existing = [mapping([300, 150, 300], "Safari"), mapping([600, 150, 150], "Mail")]
+        let clash = KnockMatcher.clash(with: KnockPattern(intervals: [330, 165, 330]), in: existing)
+        XCTAssertEqual(clash?.name, "Safari")
+    }
+
+    func test_clash_ignores_distinct_and_different_count() {
+        let existing = [mapping([600, 150, 150], "Mail"), mapping([300, 150], "Two")]
+        XCTAssertNil(KnockMatcher.clash(with: KnockPattern(intervals: [300, 150, 300]), in: existing))
+    }
+
+    func test_clash_excludes_self_when_editing() {
+        let me = mapping([300, 150, 300], "Safari")
+        XCTAssertNil(KnockMatcher.clash(with: me.pattern, in: [me], excluding: me.id))
+    }
 }

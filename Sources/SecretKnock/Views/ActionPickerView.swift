@@ -17,9 +17,13 @@ struct ActionPickerView: View {
                 ForEach(ActionType.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
-            // Switching tabs must drop the previous tab's selection, or "Next"
-            // stays enabled and saves the wrong action type for the shown tab.
-            .onChange(of: selectedType) { _ in picked = nil }
+            // Switching tabs must drop the previous tab's selection (and its
+            // shown label), or "Next" stays enabled / a stale label lingers.
+            .onChange(of: selectedType) { _ in
+                picked = nil
+                fileURL = nil
+                urlString = ""
+            }
 
             switch selectedType {
             case .app:

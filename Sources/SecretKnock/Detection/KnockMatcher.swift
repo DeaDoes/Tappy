@@ -13,6 +13,15 @@ enum KnockMatcher {
         }
     }
 
+    // The saved knock (if any) whose rhythm this pattern would also trigger —
+    // i.e. saving it would make a knock ambiguous. Used to block duplicates.
+    // Pass the mapping's own id when editing so it doesn't clash with itself.
+    static func clash(with pattern: KnockPattern, in mappings: [KnockMapping], excluding id: UUID? = nil) -> KnockMapping? {
+        mappings.first {
+            $0.id != id && $0.pattern.tapCount == pattern.tapCount && matches(pattern, against: $0.pattern)
+        }
+    }
+
     // Normalize each interval by the average, not the first — a noisy first
     // knock shouldn't skew the whole comparison. Scale-invariant: knocking the
     // same rhythm faster or slower still matches, which is the intended UX.

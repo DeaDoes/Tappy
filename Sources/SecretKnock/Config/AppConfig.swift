@@ -5,6 +5,8 @@ class AppConfig: ObservableObject {
 
     @Published var mappings: [KnockMapping] = [] { didSet { save() } }
     @Published var sensitivity: Double = 0.3 { didSet { save() } }
+    // When true, a rhythm may be reused and every matching knock fires.
+    @Published var allowSharedRhythm: Bool = false { didSet { save() } }
     @Published var isFirstLaunch: Bool {
         didSet { UserDefaults.standard.set(!isFirstLaunch, forKey: "hasLaunched") }
     }
@@ -24,6 +26,7 @@ class AppConfig: ObservableObject {
             UserDefaults.standard.set(d, forKey: "mappings")
         }
         UserDefaults.standard.set(sensitivity, forKey: "sensitivity")
+        UserDefaults.standard.set(allowSharedRhythm, forKey: "allowSharedRhythm")
     }
 
     private func load() {
@@ -37,6 +40,7 @@ class AppConfig: ObservableObject {
         }
         let s = UserDefaults.standard.double(forKey: "sensitivity")
         sensitivity = s == 0 ? 0.3 : s
+        allowSharedRhythm = UserDefaults.standard.bool(forKey: "allowSharedRhythm")
     }
 
     // ponytail: one-shot migration from the old single-pattern storage; delete after a release

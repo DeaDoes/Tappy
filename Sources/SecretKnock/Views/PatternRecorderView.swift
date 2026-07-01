@@ -3,6 +3,7 @@ import SwiftUI
 struct PatternRecorderView: View {
     @State private var recorder = KnockRecorder()
     @State private var tapCount = 0
+    @Binding var errorMessage: String?
     let onComplete: (KnockPattern) -> Void
 
     var body: some View {
@@ -25,9 +26,14 @@ struct PatternRecorderView: View {
             Text(tapCount < 3 ? "Knock at least 3 times" : "Looks good")
                 .font(.caption).foregroundStyle(.secondary)
 
+            if let errorMessage {
+                Text(errorMessage).font(.caption).foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+
             HStack {
-                Button("Reset") { recorder.reset(); tapCount = 0 }
-                    .disabled(tapCount == 0)
+                Button("Reset") { recorder.reset(); tapCount = 0; errorMessage = nil }
+                    .disabled(tapCount == 0 && errorMessage == nil)
                 Button("Save Pattern") {
                     onComplete(recorder.finish())
                 }
@@ -36,11 +42,9 @@ struct PatternRecorderView: View {
         }
         .padding()
         .frame(width: 300)
-        // Hold the engine in recording mode so live taps only feed this recorder
-        // and don't also match+fire an existing saved knock while we record.
-        .onAppear { KnockDetectionEngine.shared.isRecordingMode = true }
-        .onDisappear { KnockDetectionEngine.shared.isRecordingMode = false }
         .onReceive(NotificationCenter.default.publisher(for: .knockDetected)) { _ in
+            // First tap of a fresh attempt clears the previous clash warning.
+            if tapCount == 0 { errorMessage = nil }
             recorder.recordTap()
             tapCount += 1
         }

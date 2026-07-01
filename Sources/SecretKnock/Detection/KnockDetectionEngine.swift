@@ -70,13 +70,16 @@ class KnockDetectionEngine {
         let incoming = recorder.finish()
 
         // Match by exact tap count so a 3-tap and a 4-tap knock can't be confused.
+        // Fire every match: with shared rhythm off, saving blocks duplicates so
+        // there's only one; with it on, all knocks on this rhythm fire.
+        var fired = false
         for mapping in config.mappings where mapping.pattern.tapCount == taps.count {
             if KnockMatcher.matches(incoming, against: mapping.pattern) {
-                HapticFeedback.confirm()
                 ActionLauncher.launch(mapping.action)
-                return
+                fired = true
             }
         }
+        if fired { HapticFeedback.confirm() }
     }
 }
 
