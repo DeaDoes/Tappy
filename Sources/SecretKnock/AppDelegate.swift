@@ -84,13 +84,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover = NSPopover()
         popover.contentSize = NSSize(width: 180, height: 130)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: MenuBarView(config: config))
     }
 
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
         if popover.isShown { popover.performClose(nil) }
-        else { popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY) }
+        else {
+            // Rebuild on open so the mic status is current — it can be revoked
+            // in System Settings long after launch.
+            let micDenied = AVCaptureDevice.authorizationStatus(for: .audio) != .authorized
+            popover.contentViewController = NSHostingController(
+                rootView: MenuBarView(config: config, micDenied: micDenied)
+            )
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
     }
 
     @objc private func openSettings() {

@@ -80,7 +80,7 @@ struct KnockEditorView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Opens").font(.caption).foregroundStyle(.secondary)
-                    Text(action.map(actionLabel) ?? "Not set")
+                    Text(action?.label ?? "Not set")
                 }
                 Spacer()
                 Button("Change") { step = .action }
@@ -106,15 +106,7 @@ struct KnockEditorView: View {
     }
 
     private func defaultName(for action: KnockAction) -> String {
-        "Open \(actionLabel(action))"
-    }
-
-    private func actionLabel(_ action: KnockAction) -> String {
-        switch action {
-        case .openApp(let id): return id.components(separatedBy: ".").last ?? id
-        case .openFile(let url): return url.lastPathComponent
-        case .openURL(let url): return url.host ?? url.absoluteString
-        }
+        "Open \(action.label)"
     }
 
     // Unless sharing is on, the message for a rhythm that would also trigger

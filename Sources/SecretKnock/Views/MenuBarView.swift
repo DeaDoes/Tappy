@@ -2,12 +2,16 @@ import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var config: AppConfig
+    // Passed in fresh each time the popover opens — mic access can be revoked
+    // while Tappy runs, and claiming "Listening" while deaf is the worst lie
+    // this menu can tell.
+    var micDenied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Circle()
-                    .fill(config.mappings.isEmpty ? Color.orange : Color.green)
+                    .fill(statusColor)
                     .frame(width: 8, height: 8)
                 Text(statusText).font(.caption).foregroundStyle(.secondary)
             }
@@ -24,7 +28,13 @@ struct MenuBarView: View {
         .frame(width: 180)
     }
 
+    private var statusColor: Color {
+        if micDenied { return .red }
+        return config.mappings.isEmpty ? .orange : .green
+    }
+
     private var statusText: String {
+        if micDenied { return "No mic access — not listening" }
         if config.mappings.isEmpty { return "No knocks set" }
         return "Listening · \(config.mappings.count) knock\(config.mappings.count == 1 ? "" : "s")"
     }

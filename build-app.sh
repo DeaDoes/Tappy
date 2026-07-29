@@ -34,8 +34,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-echo "Ad-hoc signing..."
-codesign --force --deep --sign - "$APP"
+# Sign with the hardened runtime and the mic entitlement — that's what
+# notarization will require, so build it that way from day one rather than
+# discovering a deaf app after paying for a certificate.
+# (--deep is deprecated by Apple and wrong for signing; there's no nested code.)
+echo "Ad-hoc signing (hardened runtime)..."
+codesign --force --options runtime --entitlements Tappy.entitlements --sign - "$APP"
 
 echo ""
 echo "Done → $(pwd)/$APP"

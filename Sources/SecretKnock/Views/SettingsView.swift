@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject private var meter = AudioMeter.shared
     @State private var editing: KnockMapping?
     @State private var showEditor = false
+    @State private var loginItemError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -30,7 +31,7 @@ struct SettingsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(mapping.name).font(.headline)
-                            Text("\(mapping.pattern.tapCount) taps → \(actionLabel(mapping.action))")
+                            Text("\(mapping.pattern.tapCount) taps → \(mapping.action.label)")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -70,7 +71,12 @@ struct SettingsView: View {
                     .font(.caption2).foregroundStyle(.secondary)
             }
 
-            Toggle("Launch at login", isOn: launchAtLogin)
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Launch at login", isOn: launchAtLogin)
+                if let loginItemError {
+                    Text(loginItemError).font(.caption2).foregroundStyle(.red)
+                }
+            }
 
             HStack {
                 Spacer()
@@ -91,17 +97,15 @@ struct SettingsView: View {
                 do {
                     if on { try SMAppService.mainApp.register() }
                     else { try SMAppService.mainApp.unregister() }
-                } catch { print("Launch at login toggle failed: \(error)") }
+                    loginItemError = nil
+                } catch {
+                    // Registering needs a properly signed .app in /Applications;
+                    // without a message the toggle just springs back and reads
+                    // as a broken switch.
+                    loginItemError = "Couldn't change this: \(error.localizedDescription)"
+                }
             }
         )
-    }
-
-    private func actionLabel(_ action: KnockAction) -> String {
-        switch action {
-        case .openApp(let id): return id.components(separatedBy: ".").last ?? id
-        case .openFile(let url): return url.lastPathComponent
-        case .openURL(let url): return url.host ?? url.absoluteString
-        }
     }
 }
 

@@ -47,7 +47,7 @@ struct ActionPickerView: View {
     }
 
     private var pickedLabel: String? {
-        if case .openApp(let id) = picked { return id.components(separatedBy: ".").last ?? id }
+        if case .openApp = picked { return picked?.label }
         return nil
     }
 

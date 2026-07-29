@@ -7,3 +7,4 @@ dmg-staging/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 DerivedData/
+.playwright-mcp/

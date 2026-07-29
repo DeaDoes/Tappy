@@ -11,6 +11,7 @@ class KnockDetectionEngine {
     private let minTapInterval: TimeInterval = 0.2
     // Wait this long after the last tap before deciding which knock it was.
     private let settleDelay: TimeInterval = 0.65
+    private let maxTaps = 16
     private var settleWork: DispatchWorkItem?
     private var aboveThreshold = false
     var isRecordingMode = false
@@ -50,6 +51,10 @@ class KnockDetectionEngine {
         if isRecordingMode { return }
 
         recentTaps.append(now)
+        // Sustained rhythmic noise (music, drilling) keeps pushing the settle
+        // timer back, so evaluate() may not run for a long time. Cap the buffer
+        // so it can't grow without bound — no real knock is this long.
+        if recentTaps.count > maxTaps { recentTaps.removeFirst() }
 
         // Don't match yet — the user may still be knocking. Wait for a quiet
         // gap, then evaluate the whole sequence. This lets a 4-tap knock finish

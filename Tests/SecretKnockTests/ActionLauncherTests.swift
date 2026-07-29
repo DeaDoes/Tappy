@@ -24,6 +24,14 @@ final class ActionLauncherTests: XCTestCase {
         XCTAssertNil(ActionPickerView.normalizedURL("   "))
     }
 
+    func test_action_labels() {
+        XCTAssertEqual(KnockAction.openApp(bundleID: "com.brave.Browser").label, "Browser")
+        XCTAssertEqual(KnockAction.openApp(bundleID: "Terminal").label, "Terminal")
+        XCTAssertEqual(KnockAction.openFile(URL(fileURLWithPath: "/tmp/notes.txt")).label, "notes.txt")
+        XCTAssertEqual(KnockAction.openURL(URL(string: "https://example.com/x")!).label, "example.com")
+        XCTAssertEqual(KnockAction.openURL(URL(string: "mailto:a@b.com")!).label, "mailto:a@b.com")
+    }
+
     func test_codable_round_trip() throws {
         let action = KnockAction.openURL(URL(string: "https://example.com")!)
         let data = try JSONEncoder().encode(action)
