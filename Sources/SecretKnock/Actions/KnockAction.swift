@@ -5,8 +5,6 @@ enum KnockAction: Codable, Equatable {
     case openFile(URL)
     case openURL(URL)
 
-    // Short human name for the target — shown in the knock list and in the
-    // "couldn't open that" message.
     var label: String {
         switch self {
         case .openApp(let id): return id.components(separatedBy: ".").last ?? id

@@ -30,8 +30,7 @@ struct KnockEditorView: View {
                 editForm
             case .record:
                 PatternRecorderView(errorMessage: $clashMessage) { p in
-                    // Catch a clashing rhythm here, before wasting the user's time
-                    // picking an app and naming it.
+                    // Caught here, before they spend time picking an app and naming it.
                     if let msg = clashText(for: p) { clashMessage = msg; return }
                     clashMessage = nil
                     pattern = p
@@ -53,8 +52,7 @@ struct KnockEditorView: View {
                 .padding().frame(width: 300)
             }
         }
-        // Reserve a strip at the top for Cancel so it never overlaps the title,
-        // while width stays driven by the step content (no stretching Spacer).
+        // Strip at the top for Cancel; width stays driven by the step content.
         .padding(.top, 28)
         .overlay(alignment: .topTrailing) {
             Button("Cancel") { onDone() }
@@ -62,8 +60,7 @@ struct KnockEditorView: View {
                 .keyboardShortcut(.cancelAction)
                 .padding(8)
         }
-        // Suppress live matching for the whole editing session, not just the
-        // recording screen — otherwise noise could fire a knock mid-setup.
+        // Whole session, not just the recording step: noise could fire a knock mid-setup.
         .onAppear { KnockDetectionEngine.shared.isRecordingMode = true }
         .onDisappear { KnockDetectionEngine.shared.isRecordingMode = false }
     }
@@ -109,8 +106,6 @@ struct KnockEditorView: View {
         "Open \(action.label)"
     }
 
-    // Unless sharing is on, the message for a rhythm that would also trigger
-    // another knock — nil if it's fine to save.
     private func clashText(for pattern: KnockPattern) -> String? {
         guard !config.allowSharedRhythm,
               let clash = KnockMatcher.clash(with: pattern, in: config.mappings, excluding: existing?.id)

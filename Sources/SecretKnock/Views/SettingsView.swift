@@ -99,9 +99,8 @@ struct SettingsView: View {
                     else { try SMAppService.mainApp.unregister() }
                     loginItemError = nil
                 } catch {
-                    // Registering needs a properly signed .app in /Applications;
-                    // without a message the toggle just springs back and reads
-                    // as a broken switch.
+                    // Registering needs a signed .app in /Applications; without a
+                    // message the toggle just springs back and reads as broken.
                     loginItemError = "Couldn't change this: \(error.localizedDescription)"
                 }
             }

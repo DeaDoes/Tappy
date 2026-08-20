@@ -6,7 +6,6 @@ enum ActionLauncher {
         let opened: Bool
         switch action {
         case .openApp(let bundleID):
-            // The app may have been uninstalled since this knock was saved.
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
                 reportMissing(action)
                 return false
@@ -19,20 +18,15 @@ enum ActionLauncher {
         return opened
     }
 
-    // ponytail: main-thread only — launch() is always called from the main queue
-    // (the detection engine's settle timer, or a Settings button).
+    // Main-thread only; launch() is always called from the main queue.
     private static var isReporting = false
 
-    // A knock that opens nothing is indistinguishable from Tappy being broken,
-    // so name the missing target instead of failing silently.
     private static func reportMissing(_ action: KnockAction) {
-        // One knock can match several mappings, and a user whose target is gone
-        // knocks again. Without this guard every failure stacks its own modal
-        // and they have to dismiss a pile of them.
+        // One knock can match several mappings — without the guard, one failure
+        // per match stacks a pile of modals to dismiss.
         guard !isReporting else { return }
         isReporting = true
-        // Deferred: launch() runs inside a loop over matches, and a modal here
-        // would block the remaining ones (and the haptic) until dismissed.
+        // Deferred: launch() runs inside a loop, and a modal would block the rest.
         DispatchQueue.main.async {
             defer { isReporting = false }
             let alert = NSAlert()

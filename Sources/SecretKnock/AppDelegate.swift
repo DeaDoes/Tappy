@@ -10,15 +10,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // If another copy is already running, bow out quietly. We never kill it —
-        // terminating other apps would demand the scary "App Management" permission.
         if let existing = otherRunningInstance() {
             existing.activate(options: [])
             NSApp.terminate(nil)
             return
         }
-        // Menu-bar-only, explicitly — don't depend on Info.plist's LSUIElement,
-        // which SwiftPM doesn't embed. Settings temporarily flips this to .regular.
+        // Set explicitly: SwiftPM doesn't embed Info.plist's LSUIElement.
         NSApp.setActivationPolicy(.accessory)
         setupStatusBar()
         engine = KnockDetectionEngine.shared
@@ -29,15 +26,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: .openSettings, object: nil
         )
 
-        // First run (or no knocks yet): open Settings so the user can add one.
         if config.isFirstLaunch || config.mappings.isEmpty {
             config.isFirstLaunch = false
             openSettings()
         }
     }
 
-    // Knock detection needs the mic. Ask once; if denied, tell the user where
-    // to fix it instead of silently doing nothing.
     private func startListeningWhenMicAllowed() {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
@@ -68,7 +62,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func otherRunningInstance() -> NSRunningApplication? {
-        // ponytail: match by binary path, not bundleID (nil for SwiftPM exe → would match system apps)
+        // Match on binary path: bundleID is nil for a SwiftPM exe and matches system apps.
         let me = NSRunningApplication.current
         return NSWorkspace.shared.runningApplications.first {
             $0 != me && $0.executableURL == me.executableURL
@@ -90,8 +84,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let button = statusItem.button else { return }
         if popover.isShown { popover.performClose(nil) }
         else {
-            // Rebuild on open so the mic status is current — it can be revoked
-            // in System Settings long after launch.
+            // Rebuilt each open: mic access can be revoked long after launch.
             let micDenied = AVCaptureDevice.authorizationStatus(for: .audio) != .authorized
             popover.contentViewController = NSHostingController(
                 rootView: MenuBarView(config: config, micDenied: micDenied)
@@ -110,18 +103,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.delegate = self
             settingsWindow = window
         }
-        // Become a normal app while Settings is open so it gets a Dock icon,
-        // a Cmd-Tab entry, and reliably comes to the front.
+        // .regular while Settings is open: Dock icon, Cmd-Tab, comes to front.
         NSApp.setActivationPolicy(.regular)
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        // SwiftUI settles the window's height one runloop tick after it shows,
-        // so center() must wait for that or it lands off-center on the stale size.
+        // SwiftUI settles the height a runloop tick late; centering now uses the stale size.
         DispatchQueue.main.async { self.settingsWindow?.center() }
     }
 
     func windowWillClose(_ notification: Notification) {
-        // Back to menu-bar-only, and never leave the engine stuck recording.
         NSApp.setActivationPolicy(.accessory)
         KnockDetectionEngine.shared.isRecordingMode = false
     }

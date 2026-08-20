@@ -2,9 +2,6 @@ import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var config: AppConfig
-    // Passed in fresh each time the popover opens — mic access can be revoked
-    // while Tappy runs, and claiming "Listening" while deaf is the worst lie
-    // this menu can tell.
     var micDenied = false
 
     var body: some View {

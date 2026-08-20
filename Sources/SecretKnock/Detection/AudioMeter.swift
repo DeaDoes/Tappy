@@ -1,7 +1,6 @@
 import Foundation
 
-// Publishes the current mic level so the settings UI can show a live meter
-// while the user tunes sensitivity. Throttled so it doesn't spam SwiftUI.
+// Live mic level for the sensitivity meter in Settings.
 final class AudioMeter: ObservableObject {
     static let shared = AudioMeter()
     @Published var level: Double = 0

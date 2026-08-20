@@ -1,63 +1,50 @@
-import Foundation
+import AppKit
 
 class KnockDetectionEngine {
     static let shared = KnockDetectionEngine()
 
-    private let reader: AccelerometerReaderProtocol
-    private let config: AppConfig
+    private let listener = MicListener()
+    private let config = AppConfig.shared
     private var recentTaps: [Date] = []
     private var lastTapTime: Date = .distantPast
-    // ponytail: 0.2s refractory + hysteresis below = one knock counts once even as it rings
+    // Refractory period; with the hysteresis below, one knock counts once as it rings.
     private let minTapInterval: TimeInterval = 0.2
-    // Wait this long after the last tap before deciding which knock it was.
     private let settleDelay: TimeInterval = 0.65
     private let maxTaps = 16
     private var settleWork: DispatchWorkItem?
     private var aboveThreshold = false
     var isRecordingMode = false
 
-    init(reader: AccelerometerReaderProtocol = AccelerometerReader(), config: AppConfig = .shared) {
-        self.reader = reader
-        self.config = config
-    }
-
     func start() {
         isRecordingMode = false
-        reader.start(interval: 0.02) { [weak self] sample in
-            self?.process(sample)
+        listener.start { [weak self] score in
+            self?.process(score)
         }
     }
 
-    func stop() { reader.stop() }
-
-    private func process(_ sample: AccelerationSample) {
-        // Hysteresis: a tap fires only on the rising edge past sensitivity,
-        // and the level must fall below half before another tap can fire.
+    private func process(_ score: Double) {
+        // Hysteresis: fire on the rising edge only, and not again until the
+        // level falls below half.
         if aboveThreshold {
-            if sample.magnitude < config.sensitivity * 0.5 { aboveThreshold = false }
+            if score < config.sensitivity * 0.5 { aboveThreshold = false }
             return
         }
-        guard sample.magnitude > config.sensitivity else { return }
+        guard score > config.sensitivity else { return }
         aboveThreshold = true
 
         let now = Date()
         guard now.timeIntervalSince(lastTapTime) > minTapInterval else { return }
         lastTapTime = now
 
-        // Always tell any listening UI (the pattern recorder) a tap happened.
         NotificationCenter.default.post(name: .knockDetected, object: nil)
-
-        // While recording a new pattern, don't try to match or fire actions.
         if isRecordingMode { return }
 
         recentTaps.append(now)
-        // Sustained rhythmic noise (music, drilling) keeps pushing the settle
-        // timer back, so evaluate() may not run for a long time. Cap the buffer
-        // so it can't grow without bound — no real knock is this long.
+        // Sustained rhythmic noise keeps pushing the settle timer back, so
+        // evaluate() may not run for a long time. Cap the buffer.
         if recentTaps.count > maxTaps { recentTaps.removeFirst() }
 
-        // Don't match yet — the user may still be knocking. Wait for a quiet
-        // gap, then evaluate the whole sequence. This lets a 4-tap knock finish
+        // Wait for a quiet gap before matching, so a 4-tap knock finishes
         // instead of a 3-tap knock firing on its way through.
         settleWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.evaluate() }
@@ -70,13 +57,10 @@ class KnockDetectionEngine {
         recentTaps = []
         guard taps.count >= 2 else { return }
 
-        let recorder = KnockRecorder()
-        taps.forEach { recorder.recordTap(at: $0) }
-        let incoming = recorder.finish()
+        let incoming = KnockPattern(taps: taps)
 
-        // Match by exact tap count so a 3-tap and a 4-tap knock can't be confused.
-        // Fire every match: with shared rhythm off, saving blocks duplicates so
-        // there's only one; with it on, all knocks on this rhythm fire.
+        // Exact tap count, so a 3-tap and a 4-tap knock can't be confused. Fires
+        // every match, which only exceeds one when shared rhythm is on.
         var fired = false
         for mapping in config.mappings where mapping.pattern.tapCount == taps.count {
             if KnockMatcher.matches(incoming, against: mapping.pattern) {
@@ -84,7 +68,9 @@ class KnockDetectionEngine {
                 fired = true
             }
         }
-        if fired { HapticFeedback.confirm() }
+        if fired {
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+        }
     }
 }
 

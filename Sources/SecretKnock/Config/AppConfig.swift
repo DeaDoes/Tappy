@@ -5,14 +5,13 @@ class AppConfig: ObservableObject {
 
     @Published var mappings: [KnockMapping] = [] { didSet { save() } }
     @Published var sensitivity: Double = 0.3 { didSet { save() } }
-    // When true, a rhythm may be reused and every matching knock fires.
     @Published var allowSharedRhythm: Bool = false { didSet { save() } }
     @Published var isFirstLaunch: Bool {
         didSet { UserDefaults.standard.set(!isFirstLaunch, forKey: "hasLaunched") }
     }
 
-    // While loading, the property didSets must not save — writing mappings would
-    // otherwise clobber the stored sensitivity with its default before we read it.
+    // Without this, load()'s first assignment fires didSet and saves the other
+    // properties at their defaults, clobbering what's stored.
     private var isLoading = false
 
     private init() {
@@ -35,20 +34,9 @@ class AppConfig: ObservableObject {
         if let d = UserDefaults.standard.data(forKey: "mappings"),
            let m = try? JSONDecoder().decode([KnockMapping].self, from: d) {
             mappings = m
-        } else {
-            migrateOldSingleMapping()
         }
         let s = UserDefaults.standard.double(forKey: "sensitivity")
         sensitivity = s == 0 ? 0.3 : s
         allowSharedRhythm = UserDefaults.standard.bool(forKey: "allowSharedRhythm")
-    }
-
-    // ponytail: one-shot migration from the old single-pattern storage; delete after a release
-    private func migrateOldSingleMapping() {
-        guard let pd = UserDefaults.standard.data(forKey: "knockPattern"),
-              let p = try? JSONDecoder().decode(KnockPattern.self, from: pd),
-              let ad = UserDefaults.standard.data(forKey: "knockAction"),
-              let a = try? JSONDecoder().decode(KnockAction.self, from: ad) else { return }
-        mappings = [KnockMapping(name: "My knock", pattern: p, action: a)]
     }
 }

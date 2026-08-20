@@ -7,8 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "SecretKnock",
-            path: "Sources/SecretKnock",
-            linkerSettings: []
+            path: "Sources/SecretKnock"
         ),
         .testTarget(
             name: "SecretKnockTests",
