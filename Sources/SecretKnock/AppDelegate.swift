@@ -158,9 +158,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // .regular while Settings is open: Dock icon, Cmd-Tab, comes to front.
         NSApp.setActivationPolicy(.regular)
         settingsWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        // SwiftUI settles the height a runloop tick late; centering now uses the stale size.
-        DispatchQueue.main.async { self.settingsWindow?.center() }
+        // Both wait a runloop pass. Activating in the same tick as the policy
+        // switch can leave the window behind other apps — it opened, but the
+        // user sees nothing and clicks Settings again. Centering waits too,
+        // because SwiftUI settles the window's height a tick after it shows.
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            self.settingsWindow?.center()
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
