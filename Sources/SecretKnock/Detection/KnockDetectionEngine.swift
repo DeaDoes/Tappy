@@ -9,7 +9,30 @@ class KnockDetectionEngine {
     private var lastTapTime: Date = .distantPast
     // Refractory period; with the hysteresis below, one knock counts once as it rings.
     private let minTapInterval: TimeInterval = 0.2
-    private let settleDelay: TimeInterval = 0.65
+
+    // A knock is "over" once this long passes with no tap. Too short and a
+    // pattern containing a deliberate pause gets cut in half mid-performance —
+    // both halves are then discarded, so the knock records fine and silently
+    // never fires.
+    //
+    // A fixed window can't serve both a brisk tap-tap-tap and a knock with a
+    // pause in it, so it follows the slowest pause the user actually saved,
+    // with headroom for performing it slower than they recorded it. Patterns
+    // stay expressive; people whose knocks are quick still get a quick trigger.
+    static let minSettle: TimeInterval = 0.9
+    static let maxRecordGap: TimeInterval = 2.0     // longest pause the recorder allows
+    static let settleHeadroom = 1.5                 // performance-slower-than-recording margin
+    static var maxSettle: TimeInterval { maxRecordGap * settleHeadroom }
+
+    /// Whether a gap between two taps is one the matcher could still wait through.
+    static func acceptsGap(_ gap: TimeInterval) -> Bool { gap <= maxRecordGap }
+
+    /// Long enough to wait through the biggest pause any saved knock contains.
+    static func settleDelay(for mappings: [KnockMapping]) -> TimeInterval {
+        let longestPause = (mappings.flatMap { $0.pattern.intervals }.max() ?? 0) / 1000
+        return min(max(minSettle, longestPause * settleHeadroom), maxSettle)
+    }
+
     private let maxTaps = 16
     private var settleWork: DispatchWorkItem?
     private var aboveThreshold = false
@@ -49,7 +72,7 @@ class KnockDetectionEngine {
         settleWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.evaluate() }
         settleWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + settleDelay, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleDelay(for: config.mappings), execute: work)
     }
 
     private func evaluate() {
