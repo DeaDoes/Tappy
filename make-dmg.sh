@@ -9,10 +9,19 @@ DMG="Tappy.dmg"
 VOL="Tappy"
 STAGING="dmg-staging"
 BG_SVG="Resources/dmg-bg.svg"
+LAYOUT="Resources/dmg-DS_Store"   # the window layout, baked by a local run
 W=660; H=420          # window content size — must match dmg-bg.svg's viewBox
+
+# GitHub's macOS runners have no logged-in GUI session, so the Finder pass below
+# can't run there. Locally we drive Finder and save the resulting .DS_Store into
+# the repo; in CI we just drop that file into the staging folder and skip Finder.
+# Redesigned the wallpaper? Run this locally once and commit $LAYOUT.
+if [ -n "$CI" ]; then USE_FINDER=0; else USE_FINDER=1; fi
 
 [ -d "$APP" ] || { echo "Build $APP first:  ./build-app.sh"; exit 1; }
 [ -f "$BG_SVG" ] || { echo "Missing $BG_SVG (run from the repo root)"; exit 1; }
+[ "$USE_FINDER" = 1 ] || [ -f "$LAYOUT" ] || {
+  echo "No $LAYOUT to fall back on — run this script locally once and commit it."; exit 1; }
 
 echo "Staging..."
 rm -rf "$STAGING" "$DMG" rw.dmg
@@ -30,6 +39,17 @@ rm "$STAGING/.background/bg.svg"
 tiffutil -cathidpicheck "$STAGING/.background/bg.png" "$STAGING/.background/bg@2x.png" \
          -out "$STAGING/.background/bg.tiff" >/dev/null
 rm "$STAGING/.background/bg.png" "$STAGING/.background/bg@2x.png"
+
+if [ "$USE_FINDER" = 0 ]; then
+  echo "Applying saved layout (no Finder)..."
+  cp "$LAYOUT" "$STAGING/.DS_Store"
+  hdiutil create -volname "$VOL" -srcfolder "$STAGING" -ov -format UDZO \
+                 -imagekey zlib-level=9 "$DMG" >/dev/null
+  rm -rf "$STAGING"
+  echo ""
+  echo "Done → $(pwd)/$DMG"
+  exit 0
+fi
 
 echo "Creating writable image..."
 hdiutil create -volname "$VOL" -srcfolder "$STAGING" -ov -format UDRW -fs HFS+ rw.dmg >/dev/null
@@ -67,6 +87,7 @@ APPLESCRIPT
 osascript -e "tell application \"Finder\" to tell disk \"$VOL\" to get {position of item \"$APP\", position of item \"Applications\"}"
 
 sync
+cp "$MOUNT/.DS_Store" "$LAYOUT"   # what CI will replay
 hdiutil detach "$MOUNT" >/dev/null
 
 echo "Compressing $DMG..."

@@ -1,4 +1,5 @@
 .DS_Store
+!Resources/dmg-DS_Store   # the DMG window layout — CI replays this, keep it
 .build/
 .swiftpm/
 Tappy.app/

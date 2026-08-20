@@ -6,6 +6,8 @@ set -e
 APP="Tappy.app"
 BINARY="SecretKnock"   # the executableTarget name in Package.swift
 ICON="Resources/AppIcon.icns"
+VERSION="${VERSION:-1.0}"   # release.yml passes the git tag; local builds stay 1.0
+BUILD="${BUILD:-1}"
 
 # Checked before the rm -rf below, so a missing icon can't leave you with the
 # old bundle deleted and no new one built.
@@ -31,8 +33,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key><string>Tappy</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+    <key>CFBundleVersion</key><string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSMicrophoneUsageDescription</key>
@@ -40,6 +42,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+# Substituted after the fact: the heredoc is quoted so the plist stays readable
+# as literal XML above.
+sed -i '' -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" "$APP/Contents/Info.plist"
 
 # Hardened runtime + mic entitlement, matching what notarization will require.
 # (No --deep: deprecated, and there's no nested code.)

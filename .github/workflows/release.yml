@@ -1,0 +1,56 @@
+name: Release DMG
+
+# Tag-triggered, not push-triggered: the tag is where the version number comes
+# from, and shipping a build without one means every release claims to be 1.0.
+#   git tag v1.1 && git push origin v1.1
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:        # manual re-run, uses the latest tag reachable
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from the tag
+        id: v
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          [ -n "$TAG" ] || { echo "No tag to build from"; exit 1; }
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build Tappy.app
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          BUILD: ${{ github.run_number }}
+        run: ./build-app.sh
+
+      # $CI is set by GitHub, so make-dmg.sh skips the Finder pass and replays
+      # Resources/dmg-DS_Store instead. Re-bake that file locally if the
+      # wallpaper or icon positions ever change.
+      - name: Package Tappy.dmg
+        run: ./make-dmg.sh
+
+      - name: Check the layout survived
+        run: |
+          hdiutil attach Tappy.dmg -noautoopen -mountpoint /tmp/tappy >/dev/null
+          test -f /tmp/tappy/.background/bg.tiff || { echo "wallpaper missing"; exit 1; }
+          test -d /tmp/tappy/Tappy.app          || { echo "app missing"; exit 1; }
+          grep -q "bg.tiff" /tmp/tappy/.DS_Store || { echo "layout missing"; exit 1; }
+          hdiutil detach /tmp/tappy >/dev/null
+
+      # Published to the PUBLIC repo, because release assets on a private repo
+      # need an auth token to download and the website button must be a plain
+      # link. RELEASE_TOKEN is a fine-grained PAT with contents:write on
+      # DeaDoes/tappy-downloads.
+      - name: Publish to the public download repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          VERSION: ${{ steps.v.outputs.version }}   # via env, never interpolated into the shell
+        run: |
+          gh release create "$GITHUB_REF_NAME" Tappy.dmg \
+            --repo DeaDoes/tappy-downloads \
+            --title "Tappy $VERSION" \
+            --notes "macOS 13 or later. Download Tappy.dmg, drag it into Applications."
