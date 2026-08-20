@@ -147,6 +147,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func openSettings() {
         popover.performClose(nil)
+        let isNewWindow = settingsWindow == nil
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(config: config)))
             window.title = "Tappy"
@@ -161,10 +162,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Both wait a runloop pass. Activating in the same tick as the policy
         // switch can leave the window behind other apps — it opened, but the
         // user sees nothing and clicks Settings again. Centering waits too,
-        // because SwiftUI settles the window's height a tick after it shows.
+        // because SwiftUI settles the window's height a tick after it shows —
+        // and only on the first open, or it yanks a window the user has moved.
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
-            self.settingsWindow?.center()
+            if isNewWindow { self.settingsWindow?.center() }
         }
     }
 

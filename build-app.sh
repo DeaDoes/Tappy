@@ -5,6 +5,11 @@ set -e
 
 APP="Tappy.app"
 BINARY="SecretKnock"   # the executableTarget name in Package.swift
+ICON="Resources/AppIcon.icns"
+
+# Checked before the rm -rf below, so a missing icon can't leave you with the
+# old bundle deleted and no new one built.
+[ -f "$ICON" ] || { echo "Missing $ICON (run from the repo root)"; exit 1; }
 
 echo "Building release binary..."
 swift build -c release
@@ -13,7 +18,7 @@ echo "Assembling $APP..."
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp ".build/release/$BINARY" "$APP/Contents/MacOS/Tappy"
-cp "Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
