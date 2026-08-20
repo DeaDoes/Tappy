@@ -68,9 +68,7 @@ class KnockDetectionEngine {
                 fired = true
             }
         }
-        if fired {
-            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
-        }
+        if fired { NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default) }
     }
 }
 

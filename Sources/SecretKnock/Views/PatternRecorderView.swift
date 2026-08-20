@@ -15,7 +15,7 @@ struct PatternRecorderView: View {
                 if taps.isEmpty {
                     Text("Knock to start...").foregroundStyle(.secondary).font(.caption)
                 } else {
-                    ForEach(Array(0..<taps.count), id: \.self) { _ in
+                    ForEach(taps.indices, id: \.self) { _ in
                         Circle().frame(width: 12, height: 12)
                     }
                 }
@@ -33,10 +33,8 @@ struct PatternRecorderView: View {
             HStack {
                 Button("Reset") { taps = []; errorMessage = nil }
                     .disabled(taps.isEmpty && errorMessage == nil)
-                Button("Save Pattern") {
-                    onComplete(KnockPattern(taps: taps))
-                }
-                .disabled(taps.count < 3)
+                Button("Save Pattern") { onComplete(KnockPattern(taps: taps)) }
+                    .disabled(taps.count < 3)
             }
         }
         .padding()

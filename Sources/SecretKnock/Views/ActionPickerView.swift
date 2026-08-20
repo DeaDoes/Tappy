@@ -25,19 +25,18 @@ struct ActionPickerView: View {
             switch selectedType {
             case .app:
                 Button("Choose app...") { openAppPanel() }
-                if case .openApp = picked, let picked {
-                    Text(picked.label).foregroundStyle(.secondary)
-                }
             case .file:
                 Button("Choose file or folder...") { openFilePanel() }
-                if case .openFile = picked, let picked {
-                    Text(picked.label).foregroundStyle(.secondary)
-                }
             case .url:
                 TextField("https://...", text: $urlString)
                     .onChange(of: urlString) { v in
                         picked = Self.normalizedURL(v).map(KnockAction.openURL)
                     }
+            }
+
+            // Not for .url, where the field already shows it.
+            if selectedType != .url, let picked {
+                Text(picked.label).foregroundStyle(.secondary)
             }
 
             Button("Next") { if let picked { onComplete(picked) } }
