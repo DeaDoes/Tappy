@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Tappy">
+  <!-- macOS icon grid: 824x824 body centred on a 1024 canvas, so it sits at the
+       same optical size as Apple's own icons in the Dock and Applications. -->
+  <g transform="translate(100 100)">
+    <rect width="824" height="824" rx="191" fill="#191817"/>
+    <g transform="translate(412 412) scale(14.714) translate(-28 -28)">
+      <g transform="rotate(-9 28 44)">
+        <path d="M22 19 C22 14 34 14 34 19 L34 36 C34 44 22 44 22 36 Z" fill="#EDEAE4"/>
+      </g>
+      <path d="M12 44 Q28 52 44 44" fill="none" stroke="#EDEAE4" stroke-width="3.6" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

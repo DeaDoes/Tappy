@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 420" width="660" height="420" role="img">
+  <!-- Finder mount-window wallpaper. 660x420 = the window content size set in
+       make-dmg.sh; icon centres there (170,205) and (490,205) must stay clear.
+       Colours are pre-blended solids on purpose: sips' SVG rasteriser drops
+       stroke-opacity / fill-opacity, so every tint here is a literal hex. -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2=".35" y2="1">
+      <stop offset="0%" stop-color="#F6F3EE"/>
+      <stop offset="55%" stop-color="#EFECE6"/>
+      <stop offset="100%" stop-color="#E3DFD7"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="660" height="420" fill="url(#paper)"/>
+
+  <!-- knock rings radiating from the app icon: the product idea, as wallpaper -->
+  <g fill="none" stroke-width="1.5">
+    <circle cx="170" cy="205" r="86"  stroke="#D3D0CB"/>
+    <circle cx="170" cy="205" r="124" stroke="#DEDBD5"/>
+    <circle cx="170" cy="205" r="166" stroke="#E6E3DD"/>
+  </g>
+
+  <!-- drop-target ring under the Applications alias -->
+  <circle cx="490" cy="205" r="62" fill="none" stroke="#CFCCC6"
+          stroke-width="1.5" stroke-dasharray="3 7" stroke-linecap="round"/>
+
+  <!-- drag path -->
+  <g fill="none" stroke="#A6A39D" stroke-width="2" stroke-linecap="round">
+    <path d="M272 205 H398" stroke-dasharray="2 9"/>
+    <path d="M392 197 L403 205 L392 213" stroke="#8E8B85" stroke-linejoin="round"/>
+  </g>
+
+  <text x="330" y="60" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="26" font-style="italic" fill="#2A2926">Tappy</text>
+  <text x="330" y="86" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="11" letter-spacing="2.2" fill="#8C8981">DRAG TO INSTALL</text>
+
+  <!-- a knock rhythm: two quick taps, a rest, one. Sits between the icon
+       labels (y~250) and the caption, so it collides with neither. -->
+  <g fill="#BEBBB5">
+    <circle cx="296" cy="276" r="3.4"/>
+    <circle cx="313" cy="276" r="3.4"/>
+    <circle cx="352" cy="276" r="4.6" fill="#A6A39D"/>
+    <circle cx="369" cy="276" r="2.6" fill="#CFCCC6"/>
+  </g>
+  <path d="M288 290 H377" stroke="#DEDBD5" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+
+  <!-- One footer line, kept high: a Finder window with the tab bar and path bar
+       switched on loses ~60px off the bottom, and anything below y~355 vanishes.
+       __VERSION__ is substituted by make-dmg.sh from Info.plist, so the art
+       can't go stale against the binary it ships with. -->
+  <text x="330" y="316" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="11" fill="#AEABA4">A secret knock for your Mac · v__VERSION__ · macOS 13+</text>
+</svg>
