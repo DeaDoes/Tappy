@@ -2,6 +2,10 @@ import Foundation
 
 enum KnockMatcher {
     static func matches(_ incoming: KnockPattern, against saved: KnockPattern, tolerance: Double = 0.40) -> Bool {
+        // A fixed-count knock is satisfied by the tap count alone. Callers
+        // already filter on tapCount, so rhythm simply doesn't apply here.
+        guard !saved.isFixedCount else { return incoming.tapCount == saved.tapCount }
+
         guard incoming.intervals.count == saved.intervals.count,
               !saved.intervals.isEmpty else { return false }
 
@@ -17,7 +21,12 @@ enum KnockMatcher {
     // id when editing so it doesn't clash with itself.
     static func clash(with pattern: KnockPattern, in mappings: [KnockMapping], excluding id: UUID? = nil) -> KnockMapping? {
         mappings.first {
-            $0.id != id && $0.pattern.tapCount == pattern.tapCount && matches(pattern, against: $0.pattern)
+            guard $0.id != id, $0.pattern.tapCount == pattern.tapCount else { return false }
+            // A fixed-count knock swallows every rhythm of the same length, in
+            // both directions — "any 3 taps" and a recorded 3-tap rhythm can
+            // never coexist, whichever was saved first.
+            if $0.pattern.isFixedCount || pattern.isFixedCount { return true }
+            return matches(pattern, against: $0.pattern)
         }
     }
 

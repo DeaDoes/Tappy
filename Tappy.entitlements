@@ -2,10 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Notarization requires the hardened runtime, and under it the mic is
-         blocked unless the signature carries this entitlement. Without it a
-         notarized Tappy is deaf no matter what the user allows in Settings. -->
-    <key>com.apple.security.device.audio-input</key>
-    <true/>
+    <!-- Deliberately empty. Tappy reads the built-in accelerometer as a raw
+         IOHIDDevice, which needs no entitlement of its own but is not
+         compatible with the App Sandbox — so this ships Developer ID signed
+         and notarized with the hardened runtime, outside the Mac App Store.
+         Adding com.apple.security.app-sandbox here would break detection. -->
 </dict>
 </plist>

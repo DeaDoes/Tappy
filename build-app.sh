@@ -37,8 +37,6 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleVersion</key><string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Tappy listens for your knock through the microphone to trigger your shortcuts.</string>
 </dict>
 </plist>
 PLIST

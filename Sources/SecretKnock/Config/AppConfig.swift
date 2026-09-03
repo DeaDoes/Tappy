@@ -4,7 +4,7 @@ class AppConfig: ObservableObject {
     static let shared = AppConfig()
 
     @Published var mappings: [KnockMapping] = [] { didSet { save() } }
-    @Published var sensitivity: Double = 0.3 { didSet { save() } }
+    @Published var sensitivity: Double = 0.2 { didSet { save() } }
     @Published var allowSharedRhythm: Bool = false { didSet { save() } }
     @Published var isFirstLaunch: Bool {
         didSet { UserDefaults.standard.set(!isFirstLaunch, forKey: "hasLaunched") }
@@ -35,8 +35,10 @@ class AppConfig: ObservableObject {
            let m = try? JSONDecoder().decode([KnockMapping].self, from: d) {
             mappings = m
         }
-        let s = UserDefaults.standard.double(forKey: "sensitivity")
-        sensitivity = s == 0 ? 0.3 : s
+        // object(forKey:), not double(forKey:): the latter reports a missing key
+        // as 0, which is now a legal slider position (Light Tap) — so a user who
+        // dragged it fully left had it silently snapped back to the default.
+        sensitivity = (UserDefaults.standard.object(forKey: "sensitivity") as? Double) ?? 0.2
         allowSharedRhythm = UserDefaults.standard.bool(forKey: "allowSharedRhythm")
     }
 }

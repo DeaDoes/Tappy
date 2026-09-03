@@ -3,12 +3,9 @@ import AppKit
 class KnockDetectionEngine {
     static let shared = KnockDetectionEngine()
 
-    private let listener = MicListener()
+    private let detector = AccelerometerTapDetector()
     private let config = AppConfig.shared
     private var recentTaps: [Date] = []
-    private var lastTapTime: Date = .distantPast
-    // Refractory period; with the hysteresis below, one knock counts once as it rings.
-    private let minTapInterval: TimeInterval = 0.2
 
     // A knock is "over" once this long passes with no tap. Too short and a
     // pattern containing a deliberate pause gets cut in half mid-performance —
@@ -35,30 +32,23 @@ class KnockDetectionEngine {
 
     private let maxTaps = 16
     private var settleWork: DispatchWorkItem?
-    private var aboveThreshold = false
     var isRecordingMode = false
+
+    /// True when the accelerometer never appeared and taps come from the trackpad.
+    var isUsingTrackpadFallback: Bool { detector.isUsingTrackpadFallback }
 
     func start() {
         isRecordingMode = false
-        listener.start { [weak self] score in
-            self?.process(score)
+        detector.start { [weak self] in
+            self?.handleTap()
         }
     }
 
-    private func process(_ score: Double) {
-        // Hysteresis: fire on the rising edge only, and not again until the
-        // level falls below half.
-        if aboveThreshold {
-            if score < config.sensitivity * 0.5 { aboveThreshold = false }
-            return
-        }
-        guard score > config.sensitivity else { return }
-        aboveThreshold = true
-
+    // Thresholding, hysteresis and the refractory gap all live in the detector
+    // now — it sees the raw signal, so it can gate on it far better than a
+    // score-shaped proxy could. Everything from here down is unchanged.
+    private func handleTap() {
         let now = Date()
-        guard now.timeIntervalSince(lastTapTime) > minTapInterval else { return }
-        lastTapTime = now
-
         NotificationCenter.default.post(name: .knockDetected, object: nil)
         if isRecordingMode { return }
 
@@ -78,7 +68,9 @@ class KnockDetectionEngine {
     private func evaluate() {
         let taps = recentTaps
         recentTaps = []
-        guard taps.count >= 2 else { return }
+        // One tap is a real knock now that a fixed-count mapping can ask for it.
+        // With no 1-tap mapping saved, the loop below simply matches nothing.
+        guard !taps.isEmpty else { return }
 
         let incoming = KnockPattern(taps: taps)
 

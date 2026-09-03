@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import AVFoundation
+import os
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
@@ -10,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.logUncaughtExceptions()
         if let existing = otherRunningInstance() {
             existing.activate(options: [])
             NSApp.terminate(nil)
@@ -19,7 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
         setupStatusBar()
         engine = KnockDetectionEngine.shared
-        startListeningWhenMicAllowed()
+        engine.start()
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(openSettings),
@@ -32,33 +33,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func startListeningWhenMicAllowed() {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
-            engine.start()
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
-                DispatchQueue.main.async {
-                    if granted { self?.engine.start() } else { self?.showMicDeniedAlert() }
-                }
+    // AppKit swallows the reason and stops in _crashOnException, which tells you
+    // nothing without a debugger attached. Write it somewhere `log stream` sees.
+    private static func logUncaughtExceptions() {
+        NSSetUncaughtExceptionHandler { exception in
+            let log = Logger(subsystem: "com.deepanjan.tappy", category: "crash")
+            log.fault("""
+                uncaught \(exception.name.rawValue, privacy: .public): \
+                \(exception.reason ?? "no reason", privacy: .public)
+                """)
+            for frame in exception.callStackSymbols.prefix(25) {
+                log.fault("  \(frame, privacy: .public)")
             }
-        default:
-            showMicDeniedAlert()
         }
-    }
-
-    private func showMicDeniedAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Microphone access needed"
-        alert.informativeText = "Tappy listens for your knock through the microphone. Enable it in System Settings → Privacy & Security → Microphone, then reopen Tappy."
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Later")
-        NSApp.setActivationPolicy(.regular)
-        if alert.runModal() == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-            NSWorkspace.shared.open(url)
-        }
-        NSApp.setActivationPolicy(.accessory)
     }
 
     private func otherRunningInstance() -> NSRunningApplication? {
@@ -136,10 +123,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let button = statusItem.button else { return }
         if popover.isShown { popover.performClose(nil) }
         else {
-            // Rebuilt each open: mic access can be revoked long after launch.
-            let micDenied = AVCaptureDevice.authorizationStatus(for: .audio) != .authorized
             popover.contentViewController = NSHostingController(
-                rootView: MenuBarView(config: config, micDenied: micDenied)
+                rootView: MenuBarView(config: config,
+                                      usingTrackpadFallback: engine.isUsingTrackpadFallback)
             )
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }

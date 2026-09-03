@@ -3,12 +3,25 @@ import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject var config: AppConfig
-    @ObservedObject private var meter = AudioMeter.shared
     @State private var editing: KnockMapping?
     @State private var showEditor = false
     @State private var loginItemError: String?
 
+    // Fixed window, scrolling content. The content's height genuinely varies —
+    // one row per saved knock, and a whole section that appears only in
+    // accelerometer mode — and letting the window resize to fit it puts AppKit
+    // in a loop: resize -> invalidate -> remeasure -> resize, until it exceeds
+    // its constraint-pass limit and throws. Pinning the frame breaks that, and
+    // also stops the window growing off-screen once enough knocks are saved.
     var body: some View {
+        ScrollView { content.padding(20) }
+            .frame(width: 460, height: 600)
+            .sheet(isPresented: $showEditor) {
+                KnockEditorView(config: config, existing: editing) { showEditor = false }
+            }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Your knocks").font(.title2).bold()
@@ -31,7 +44,7 @@ struct SettingsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(mapping.name).font(.headline)
-                            Text("\(mapping.pattern.tapCount) taps → \(mapping.action.label)")
+                            Text("\(mapping.pattern.summary) → \(mapping.action.label)")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -51,16 +64,13 @@ struct SettingsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Sensitivity").font(.subheadline)
-                LevelMeterView(level: meter.level, threshold: config.sensitivity)
-                HStack {
-                    Text("Gentle").font(.caption).foregroundStyle(.secondary)
-                    Slider(value: $config.sensitivity, in: 0.05...1.0)
-                    Text("Hard").font(.caption).foregroundStyle(.secondary)
-                }
-                Text("Knock now — the bar should jump past the marker. Keep ambient noise below it.")
+            // Knock Feel is meaningless without the sensor — on a Mac that fell
+            // back to trackpad clicks there is no tap strength to tune.
+            if KnockDetectionEngine.shared.isUsingTrackpadFallback {
+                Text("No motion sensor on this Mac, so Tappy is counting trackpad clicks instead.")
                     .font(.caption2).foregroundStyle(.secondary)
+            } else {
+                KnockFeelView(config: config)
             }
 
             Divider()
@@ -83,11 +93,10 @@ struct SettingsView: View {
                 Button("Quit Tappy") { NSApp.terminate(nil) }.foregroundStyle(.red)
             }
         }
-        .padding(20)
-        .frame(width: 460)
-        .sheet(isPresented: $showEditor) {
-            KnockEditorView(config: config, existing: editing) { showEditor = false }
-        }
+        // Full width inside the scroll view, and wrapping text reports its real
+        // height instead of negotiating it — the other half of the resize loop.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var launchAtLogin: Binding<Bool> {
@@ -105,28 +114,5 @@ struct SettingsView: View {
                 }
             }
         )
-    }
-}
-
-struct LevelMeterView: View {
-    let level: Double
-    let threshold: Double
-    private let maxScale = 1.5
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let fill = min(level / maxScale, 1.0) * w
-            let mark = min(threshold / maxScale, 1.0) * w
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.08))
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(level > threshold ? Color.green : Color.accentColor)
-                    .frame(width: fill)
-                Rectangle().fill(Color.primary.opacity(0.6))
-                    .frame(width: 2).offset(x: mark)
-            }
-        }
-        .frame(height: 10)
     }
 }

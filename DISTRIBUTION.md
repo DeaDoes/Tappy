@@ -36,13 +36,14 @@ Needed so other people can open Tappy without "unidentified developer" warnings.
 
 4. **Distribute** — zip the stapled `Tappy.app` and put it on Gumroad / your site.
 
-Note: Tappy turns off the App Sandbox (needed for mic + launching arbitrary apps), so it can't go on the Mac App Store. Direct distribution is the path — same as Alcove.
+Note: Tappy turns off the App Sandbox (needed for raw IOHIDDevice access to the built-in accelerometer, plus launching arbitrary apps), so it can't go on the Mac App Store. Direct distribution is the path — same as Alcove.
 
 ## 3. Info.plist — required keys
 
-SwiftPM cannot embed an Info.plist, so `build-app.sh` writes the bundle's plist itself. The packaged `.app` MUST contain these keys or it breaks:
+SwiftPM cannot embed an Info.plist, so `build-app.sh` writes the bundle's plist itself. The packaged `.app` MUST contain this key or it breaks:
 
-- `NSMicrophoneUsageDescription` — **without it the app crashes** the moment it asks for the mic.
 - `LSUIElement = YES` — keeps it menu-bar-only (no Dock icon). The code also forces this via `setActivationPolicy(.accessory)`, so it's belt-and-suspenders.
 
-When you make a real app target in Xcode, set its Info.plist (or build settings `INFOPLIST_KEY_NSMicrophoneUsageDescription` and `LSUIElement`) with these values.
+No usage-description string is needed. Tap detection reads the accelerometer as an HID input device, which triggers no TCC prompt — the mic path that required `NSMicrophoneUsageDescription` is gone.
+
+When you make a real app target in Xcode, set its Info.plist (or the `INFOPLIST_KEY_LSUIElement` build setting) accordingly.

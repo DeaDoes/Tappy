@@ -11,13 +11,13 @@ struct KnockEditorView: View {
     @State private var name: String
     @State private var clashMessage: String?
 
-    enum Step { case edit, record, action, name }
+    enum Step { case edit, kind, record, action, name }
 
     init(config: AppConfig, existing: KnockMapping?, onDone: @escaping () -> Void) {
         self.config = config
         self.existing = existing
         self.onDone = onDone
-        _step = State(initialValue: existing == nil ? .record : .edit)
+        _step = State(initialValue: existing == nil ? .kind : .edit)
         _pattern = State(initialValue: existing?.pattern)
         _action = State(initialValue: existing?.action)
         _name = State(initialValue: existing?.name ?? "")
@@ -28,14 +28,11 @@ struct KnockEditorView: View {
             switch step {
             case .edit:
                 editForm
+            case .kind:
+                kindPicker
             case .record:
-                PatternRecorderView(errorMessage: $clashMessage) { p in
-                    // Caught here, before they spend time picking an app and naming it.
-                    if let msg = clashText(for: p) { clashMessage = msg; return }
-                    clashMessage = nil
-                    pattern = p
-                    step = existing == nil ? .action : .edit
-                }
+                // Caught here, before they spend time picking an app and naming it.
+                PatternRecorderView(errorMessage: $clashMessage) { choose($0) }
             case .action:
                 ActionPickerView { a in
                     action = a
@@ -65,6 +62,62 @@ struct KnockEditorView: View {
         .onDisappear { KnockDetectionEngine.shared.isRecordingMode = false }
     }
 
+    private var kindPicker: some View {
+        VStack(spacing: 16) {
+            Text("How should this knock work?").font(.headline)
+
+            // The rhythm goes first and gets the prominent button. It is the
+            // only option that rejects accidental taps — a fixed count fires on
+            // any taps of that number, including hand movements on the palm
+            // rest. Leading with the counts taught users to pick the weaker one.
+            VStack(spacing: 4) {
+                Button {
+                    step = .record
+                } label: {
+                    Text("Record my own rhythm")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Text("Three or more taps in your own timing. Accidental bumps won't match it, so this is the safe choice.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Divider()
+
+            Text("Or just count taps").font(.caption).foregroundStyle(.secondary)
+
+            HStack(spacing: 6) {
+                ForEach([1, 2, 3], id: \.self) { count in
+                    Button("\(count) tap\(count == 1 ? "" : "s")") {
+                        choose(KnockPattern(fixedCount: count))
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+
+            Text("Simpler, but any taps of that number will trigger it — including ones you didn't mean.")
+                .font(.caption2).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            if let clashMessage {
+                Text(clashMessage).font(.caption).foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding().frame(width: 300)
+    }
+
+    private func choose(_ p: KnockPattern) {
+        if let msg = clashText(for: p) { clashMessage = msg; return }
+        clashMessage = nil
+        pattern = p
+        step = existing == nil ? .action : .edit
+    }
+
     private var editForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Edit knock").font(.headline)
@@ -85,11 +138,11 @@ struct KnockEditorView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Rhythm").font(.caption).foregroundStyle(.secondary)
-                    Text("\(pattern?.tapCount ?? 0) taps")
+                    Text("Knock").font(.caption).foregroundStyle(.secondary)
+                    Text(pattern?.summary ?? "Not set")
                 }
                 Spacer()
-                Button("Re-record") { step = .record }
+                Button("Change") { step = .kind }
             }
 
             if let clashMessage { Text(clashMessage).font(.caption).foregroundStyle(.red) }

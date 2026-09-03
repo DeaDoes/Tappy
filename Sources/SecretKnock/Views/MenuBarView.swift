@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var config: AppConfig
-    var micDenied = false
+    var usingTrackpadFallback = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,14 +26,16 @@ struct MenuBarView: View {
     }
 
     private var statusColor: Color {
-        if micDenied { return .red }
-        return config.mappings.isEmpty ? .orange : .green
+        if config.mappings.isEmpty { return .orange }
+        return usingTrackpadFallback ? .yellow : .green
     }
 
     private var statusText: String {
-        if micDenied { return "No mic access — not listening" }
         if config.mappings.isEmpty { return "No knocks set" }
-        return "Listening · \(config.mappings.count) knock\(config.mappings.count == 1 ? "" : "s")"
+        let count = "\(config.mappings.count) knock\(config.mappings.count == 1 ? "" : "s")"
+        // Worth saying out loud: on a Mac without the sensor the app still
+        // works, but only from trackpad clicks — tapping the case does nothing.
+        return usingTrackpadFallback ? "Trackpad mode · \(count)" : "Listening · \(count)"
     }
 }
 

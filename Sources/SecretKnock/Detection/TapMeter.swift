@@ -1,8 +1,9 @@
 import Foundation
 
-// Live mic level for the sensitivity meter in Settings.
-final class AudioMeter: ObservableObject {
-    static let shared = AudioMeter()
+// Live tap level for the strength readout in Settings, reported as a multiple
+// of the fixed trigger point so the meter is unit-free.
+final class TapMeter: ObservableObject {
+    static let shared = TapMeter()
     @Published var level: Double = 0
     private var lastPush = Date.distantPast
     private init() {}
