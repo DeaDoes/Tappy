@@ -21,10 +21,47 @@ jobs:
           [ -n "$TAG" ] || { echo "No tag to build from"; exit 1; }
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
+      # Without this the runner has no identity and build-app.sh falls back to
+      # ad-hoc, which is what makes every update reset the user's Accessibility
+      # permission. Skipped cleanly when the secrets aren't set yet, so the
+      # workflow still produces a (warned-about) ad-hoc build.
+      #
+      # SIGNING_CERT_P12 is `base64 -i Tappy.p12` of the exported certificate;
+      # SIGNING_CERT_PASSWORD is the password used when exporting it.
+      - name: Import signing certificate
+        id: sign
+        env:
+          CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12" ]; then
+            echo "No SIGNING_CERT_P12 secret — this release will be ad-hoc signed."
+            exit 0
+          fi
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$CERT_P12" | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          # No timeout, or the keychain relocks partway through a long build.
+          security set-keychain-settings build.keychain
+          security import /tmp/cert.p12 -k build.keychain -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign
+          # Lets codesign use the key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain >/dev/null
+          rm -f /tmp/cert.p12
+          IDENTITY="$(security find-identity -v -p codesigning build.keychain \
+            | awk -F'"' '/"/{print $2; exit}')"
+          [ -n "$IDENTITY" ] || { echo "Certificate imported but no codesigning identity found"; exit 1; }
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "Signing identity: $IDENTITY"
+
       - name: Build Tappy.app
         env:
           VERSION: ${{ steps.v.outputs.version }}
           BUILD: ${{ github.run_number }}
+          SIGN_IDENTITY: ${{ steps.sign.outputs.identity }}
         run: ./build-app.sh
 
       # $CI is set by GitHub, so make-dmg.sh skips the Finder pass and replays

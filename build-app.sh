@@ -54,10 +54,39 @@ PLIST
 # as literal XML above.
 sed -i '' -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" "$APP/Contents/Info.plist"
 
-# Hardened runtime + mic entitlement, matching what notarization will require.
+# Sign with a real identity when one exists, ad-hoc only as a fallback.
+#
+# This is what keeps macOS's Accessibility grant alive across updates. An
+# ad-hoc signature carries no identity, so the grant is pinned to the binary's
+# cdhash — every release is a different hash, so the grant silently dies while
+# System Settings still shows the app switched on. A stable certificate makes
+# the requirement "this bundle ID, signed by this certificate", which every
+# later build still satisfies.
+#
+# SIGN_IDENTITY can be set explicitly (CI does); otherwise the first codesigning
+# identity in the keychain is used.
+if [ -z "$SIGN_IDENTITY" ]; then
+    SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk -F'"' '/"/{print $2; exit}')"
+fi
+
+# Hardened runtime + entitlements, matching what notarization will require.
 # (No --deep: deprecated, and there's no nested code.)
-echo "Ad-hoc signing (hardened runtime)..."
-codesign --force --options runtime --entitlements Tappy.entitlements --sign - "$APP"
+if [ -n "$SIGN_IDENTITY" ]; then
+    echo "Signing as: $SIGN_IDENTITY"
+    codesign --force --options runtime --entitlements Tappy.entitlements \
+        --sign "$SIGN_IDENTITY" "$APP"
+else
+    echo "WARNING: no codesigning identity found — signing ad-hoc."
+    echo "         Every update will break the user's Accessibility permission."
+    codesign --force --options runtime --entitlements Tappy.entitlements --sign - "$APP"
+fi
+
+# Printed so a release log shows what the grant is actually pinned to: a bare
+# `cdhash H"..."` means ad-hoc and a permission that dies on the next update.
+echo "Designated requirement:"
+# Ad-hoc prints "# designated =>", a real signature prints "designated =>".
+codesign -d -r- "$APP" 2>&1 | sed -n 's/^#* *designated => /  /p'
 
 echo ""
 echo "Done → $(pwd)/$APP"

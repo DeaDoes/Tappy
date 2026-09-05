@@ -110,12 +110,7 @@ enum UpdateInstaller {
               bundle.bundleIdentifier == Bundle.main.bundleIdentifier
         else { throw Failure.notTappy }
 
-        // Self-consistency only: with an ad-hoc signature there is no identity
-        // to match against, so this catches a corrupt or truncated download,
-        // not a substituted one. A Developer ID build would compare identities.
-        guard run("/usr/bin/codesign", ["--verify", "--deep", source.path]).ok else {
-            throw Failure.unsignedOrDamaged
-        }
+        try verifySignature(of: source)
 
         let staged = FileManager.default.temporaryDirectory
             .appendingPathComponent("tappy-staged-\(UUID().uuidString)")
@@ -125,6 +120,44 @@ enum UpdateInstaller {
             throw Failure.install("couldn't copy the new version out of the disk image")
         }
         return stagedApp
+    }
+
+    /// Checks the download was signed by whoever signed the copy that's running.
+    ///
+    /// Deliberately not `codesign --verify` alone. That only proves the bundle
+    /// is internally consistent, and — more importantly — the user's Mac does
+    /// not trust Tappy's self-signed certificate, so a check that depended on
+    /// trust would refuse every update on every machine but the developer's.
+    /// Matching the running app's designated requirement is trust-independent:
+    /// it compares the signing identity, which is exactly the question.
+    private static func verifySignature(of app: URL) throws {
+        let requirement = designatedRequirement(of: Bundle.main.bundleURL)
+
+        // An ad-hoc requirement is a bare cdhash of the running binary, which
+        // no other build can ever satisfy. That's every user updating away from
+        // an ad-hoc release, so fall back to a plain integrity check for them.
+        // Once they are on a signed build this branch stops being taken.
+        guard let requirement, !requirement.contains("cdhash") else {
+            guard run("/usr/bin/codesign", ["--verify", app.path]).ok else {
+                throw Failure.unsignedOrDamaged
+            }
+            return
+        }
+
+        guard run("/usr/bin/codesign", ["--verify", "-R=\(requirement)", app.path]).ok else {
+            throw Failure.unsignedOrDamaged
+        }
+    }
+
+    /// The `designated => ...` line from `codesign -d -r-`. Ad-hoc signatures
+    /// prefix it with "# ", real ones don't.
+    private static func designatedRequirement(of app: URL) -> String? {
+        let output = run("/usr/bin/codesign", ["-d", "-r-", app.path]).output
+        return output
+            .split(separator: "\n")
+            .first { $0.contains("designated => ") }
+            .map { String($0[$0.range(of: "designated => ")!.upperBound...]) }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
     /// Replaces the running bundle with the staged one and relaunches. Does not
