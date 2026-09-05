@@ -20,7 +20,10 @@ enum MainPage: String, CaseIterable, Identifiable {
 
 struct MainWindowView: View {
     @ObservedObject var config: AppConfig
-    @State private var page: MainPage = .knocks
+    // Straight to Settings on the launch after an update, because that is the
+    // page that says which version you are now on.
+    @State private var page: MainPage =
+        UpdateChecker.shared.justUpdatedFrom == nil ? .knocks : .settings
 
     var body: some View {
         NavigationSplitView {

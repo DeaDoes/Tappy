@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var config: AppConfig
+    @ObservedObject private var updates = UpdateChecker.shared
     var usingTrackpadFallback = false
 
     var body: some View {
@@ -15,6 +16,30 @@ struct MenuBarView: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
 
             Divider()
+
+            if let version = updates.availableVersion {
+                switch updates.state {
+                case .downloading(let fraction):
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Downloading Tappy \(version)…").font(.caption)
+                        if let fraction {
+                            ProgressView(value: fraction)
+                        } else {
+                            ProgressView().progressViewStyle(.linear)
+                        }
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                case .installing:
+                    Text("Installing Tappy \(version)…").font(.caption)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                case .idle, .failed:
+                    MenuRow(title: "Update to Tappy \(version)", isProminent: true) {
+                        Task { await updates.downloadAndInstall() }
+                    }
+                }
+                Divider()
+            }
+
             MenuRow(title: "Open Tappy") {
                 NotificationCenter.default.post(name: .openSettings, object: nil)
             }
@@ -22,7 +47,10 @@ struct MenuBarView: View {
             MenuRow(title: "Quit", isDestructive: true) { NSApp.terminate(nil) }
         }
         .padding(.vertical, 4)
-        .frame(width: 200)
+        .frame(width: 220)
+        // Opening the menu is a good moment for a fresh answer, and it costs
+        // one request at most once a day thanks to the checker's own guard.
+        .task { await updates.check() }
     }
 
     private var statusColor: Color {
@@ -44,14 +72,22 @@ struct MenuBarView: View {
 private struct MenuRow: View {
     let title: String
     var isDestructive = false
+    var isProminent = false
     let action: () -> Void
 
     @State private var isHovering = false
 
+    private var tint: Color {
+        if isHovering { return .white }
+        if isDestructive { return .red }
+        return isProminent ? .accentColor : .primary
+    }
+
     var body: some View {
         Button(action: action) {
             Text(title)
-                .foregroundStyle(isHovering ? .white : (isDestructive ? Color.red : .primary))
+                .fontWeight(isProminent ? .medium : .regular)
+                .foregroundStyle(tint)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(isHovering ? Color.accentColor : .clear,

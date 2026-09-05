@@ -8,6 +8,7 @@ class AppConfig: ObservableObject {
     @Published var allowSharedRhythm: Bool = false { didSet { save() } }
     @Published var contextAwareGestures: Bool = false { didSet { save() } }
     @Published var contextRules: [ContextRule] = [] { didSet { save() } }
+    @Published var automaticUpdateChecks: Bool = true { didSet { save() } }
     @Published var isFirstLaunch: Bool {
         didSet { defaults.set(!isFirstLaunch, forKey: "hasLaunched") }
     }
@@ -38,6 +39,7 @@ class AppConfig: ObservableObject {
         defaults.set(sensitivity, forKey: "sensitivity")
         defaults.set(allowSharedRhythm, forKey: "allowSharedRhythm")
         defaults.set(contextAwareGestures, forKey: "contextAwareGestures")
+        defaults.set(automaticUpdateChecks, forKey: "automaticUpdateChecks")
     }
 
     private func load() {
@@ -53,6 +55,9 @@ class AppConfig: ObservableObject {
         sensitivity = (defaults.object(forKey: "sensitivity") as? Double) ?? 0.2
         allowSharedRhythm = defaults.bool(forKey: "allowSharedRhythm")
         contextAwareGestures = defaults.bool(forKey: "contextAwareGestures")
+        // object(forKey:), not bool(forKey:): a missing key reads as false, and
+        // this one defaults to on.
+        automaticUpdateChecks = (defaults.object(forKey: "automaticUpdateChecks") as? Bool) ?? true
         if let d = defaults.data(forKey: "contextRules"),
            let r = try? JSONDecoder().decode([ContextRule].self, from: d) {
             contextRules = r

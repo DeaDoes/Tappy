@@ -8,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let config = AppConfig.shared
     private var engine: KnockDetectionEngine!
     private var settingsWindow: NSWindow?
+    private var clickMonitor: Any?
 
     /// Sent by a second copy of Tappy to the one already running, asking it to
     /// show its window before the second copy quits.
@@ -31,6 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupStatusBar()
         engine = KnockDetectionEngine.shared
         engine.start()
+        UpdateChecker.shared.start()
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(openSettings),
@@ -41,7 +43,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: Self.openWindowNotification, object: nil
         )
 
-        if config.isFirstLaunch || config.mappings.isEmpty {
+        // An update relaunches the app with no window, which from the outside
+        // looks exactly like Tappy having crashed. Show the window so the
+        // Settings page can say what happened.
+        let justUpdated = UpdateChecker.shared.consumeUpdateResult()
+
+        if justUpdated || config.isFirstLaunch || config.mappings.isEmpty {
             config.isFirstLaunch = false
             openSettings()
         }
@@ -135,18 +142,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
-        if popover.isShown { popover.performClose(nil) }
+        if popover.isShown { closePopover() }
         else {
             popover.contentViewController = NSHostingController(
                 rootView: MenuBarView(config: config,
                                       usingTrackpadFallback: engine.isUsingTrackpadFallback)
             )
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+            // `.transient` is supposed to do this, but it only closes on events
+            // this app receives — and a menu bar app is usually not the active
+            // one, so a click in another window left the popover hanging there.
+            // Watching clicks that go elsewhere is what makes it behave like a
+            // real menu.
+            clickMonitor = NSEvent.addGlobalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+            ) { [weak self] _ in
+                self?.closePopover()
+            }
         }
     }
 
-    @objc private func openSettings() {
+    private func closePopover() {
         popover.performClose(nil)
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
+    }
+
+    @objc private func openSettings() {
+        closePopover()
         let isNewWindow = settingsWindow == nil
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: MainWindowView(config: config)))
