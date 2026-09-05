@@ -15,14 +15,14 @@ struct MenuBarView: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
 
             Divider()
-            Button("Settings...") { NotificationCenter.default.post(name: .openSettings, object: nil) }
-                .buttonStyle(.plain).padding(.horizontal, 12).padding(.vertical, 6)
+            MenuRow(title: "Open Tappy") {
+                NotificationCenter.default.post(name: .openSettings, object: nil)
+            }
             Divider()
-            Button("Quit") { NSApp.terminate(nil) }
-                .buttonStyle(.plain).padding(.horizontal, 12).padding(.vertical, 6)
-                .foregroundStyle(.red)
+            MenuRow(title: "Quit", isDestructive: true) { NSApp.terminate(nil) }
         }
-        .frame(width: 180)
+        .padding(.vertical, 4)
+        .frame(width: 200)
     }
 
     private var statusColor: Color {
@@ -36,6 +36,31 @@ struct MenuBarView: View {
         // Worth saying out loud: on a Mac without the sensor the app still
         // works, but only from trackpad clicks — tapping the case does nothing.
         return usingTrackpadFallback ? "Trackpad mode · \(count)" : "Listening · \(count)"
+    }
+}
+
+/// A popover isn't a real NSMenu, so a plain button in it doesn't highlight on
+/// hover and reads as dead text. This is the highlight, nothing more.
+private struct MenuRow: View {
+    let title: String
+    var isDestructive = false
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .foregroundStyle(isHovering ? .white : (isDestructive ? Color.red : .primary))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(isHovering ? Color.accentColor : .clear,
+                            in: RoundedRectangle(cornerRadius: 5))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 5)
+        .onHover { isHovering = $0 }
     }
 }
 

@@ -9,10 +9,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var engine: KnockDetectionEngine!
     private var settingsWindow: NSWindow?
 
+    /// Sent by a second copy of Tappy to the one already running, asking it to
+    /// show its window before the second copy quits.
+    private static let openWindowNotification = Notification.Name("com.deepanjan.tappy.openWindow")
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.logUncaughtExceptions()
         if let existing = otherRunningInstance() {
             existing.activate(options: [])
+            // Activating alone shows nothing — the running copy is a menu bar
+            // app and may have no window. Ask it to open one before quitting,
+            // delivered immediately because this process is about to go away.
+            DistributedNotificationCenter.default().postNotificationName(
+                Self.openWindowNotification, object: nil, userInfo: nil, deliverImmediately: true
+            )
             NSApp.terminate(nil)
             return
         }
@@ -25,6 +35,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(openSettings),
             name: .openSettings, object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(openSettings),
+            name: Self.openWindowNotification, object: nil
         )
 
         if config.isFirstLaunch || config.mappings.isEmpty {
@@ -63,7 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem.button?.target = self
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 180, height: 130)
+        popover.contentSize = NSSize(width: 200, height: 130)
         popover.behavior = .transient
     }
 
@@ -135,9 +149,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover.performClose(nil)
         let isNewWindow = settingsWindow == nil
         if settingsWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(config: config)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: MainWindowView(config: config)))
             window.title = "Tappy"
-            window.styleMask = [.titled, .closable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.setContentSize(NSSize(width: 1040, height: 700))
             window.isReleasedWhenClosed = false
             window.delegate = self
             settingsWindow = window
@@ -154,6 +170,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.activate(ignoringOtherApps: true)
             if isNewWindow { self.settingsWindow?.center() }
         }
+    }
+
+    /// Opening the app again when it is already running — a double-click in
+    /// Finder, its Dock icon, `open Tappy.app`. macOS delivers this instead of
+    /// launching a second copy, and without handling it a menu bar app simply
+    /// does nothing, which reads as "the app won't open".
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { openSettings() }
+        return true
     }
 
     func windowWillClose(_ notification: Notification) {

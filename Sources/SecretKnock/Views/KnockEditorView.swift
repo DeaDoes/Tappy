@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Recording a knock with its own rhythm. Fixed-count knocks are the three
+/// slots on the main screen now, so this flow is only ever about a rhythm:
+/// record it, pick what it does, name it.
 struct KnockEditorView: View {
     @ObservedObject var config: AppConfig
     var existing: KnockMapping?
@@ -11,104 +14,119 @@ struct KnockEditorView: View {
     @State private var name: String
     @State private var clashMessage: String?
 
-    enum Step { case edit, kind, record, action, name }
+    enum Step { case edit, record, action, name }
 
     init(config: AppConfig, existing: KnockMapping?, onDone: @escaping () -> Void) {
         self.config = config
         self.existing = existing
         self.onDone = onDone
-        _step = State(initialValue: existing == nil ? .kind : .edit)
+        _step = State(initialValue: existing == nil ? .record : .edit)
         _pattern = State(initialValue: existing?.pattern)
         _action = State(initialValue: existing?.action)
         _name = State(initialValue: existing?.name ?? "")
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             switch step {
-            case .edit:
-                editForm
-            case .kind:
-                kindPicker
-            case .record:
-                // Caught here, before they spend time picking an app and naming it.
-                PatternRecorderView(errorMessage: $clashMessage) { choose($0) }
             case .action:
-                ActionPickerView { a in
-                    action = a
-                    if existing == nil, name.isEmpty { name = defaultName(for: a) }
+                // Full-size sheet of its own; it brings its own Cancel.
+                ActionPickerSheet(title: name.isEmpty ? "New knock" : name,
+                                  current: action,
+                                  subtitle: "For this rhythm. Click a card to assign.") { picked in
+                    action = picked
+                    if let picked, existing == nil, name.isEmpty { name = defaultName(for: picked) }
                     step = existing == nil ? .name : .edit
+                } onCancel: {
+                    step = existing == nil ? .record : .edit
                 }
-            case .name:
-                VStack(spacing: 16) {
-                    Text("Name this knock").font(.headline)
-                    TextField("e.g. Open Brave", text: $name).textFieldStyle(.roundedBorder)
-                    if let clashMessage { Text(clashMessage).font(.caption).foregroundStyle(.red) }
-                    Button("Save") { save() }
-                }
-                .padding().frame(width: 300)
+
+            default:
+                compactStep
             }
-        }
-        // Strip at the top for Cancel; width stays driven by the step content.
-        .padding(.top, 28)
-        .overlay(alignment: .topTrailing) {
-            Button("Cancel") { onDone() }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-                .padding(8)
         }
         // Whole session, not just the recording step: noise could fire a knock mid-setup.
         .onAppear { KnockDetectionEngine.shared.isRecordingMode = true }
         .onDisappear { KnockDetectionEngine.shared.isRecordingMode = false }
     }
 
-    private var kindPicker: some View {
-        VStack(spacing: 16) {
-            Text("How should this knock work?").font(.headline)
+    @ViewBuilder private var compactStep: some View {
+        switch step {
+        case .record:
+            // Caught here, before they spend time picking an action and naming it.
+            PatternRecorderView(errorMessage: $clashMessage, onComplete: { choose($0) },
+                                onCancel: onDone)
 
-            // The rhythm goes first and gets the prominent button. It is the
-            // only option that rejects accidental taps — a fixed count fires on
-            // any taps of that number, including hand movements on the palm
-            // rest. Leading with the counts taught users to pick the weaker one.
-            VStack(spacing: 4) {
-                Button {
-                    step = .record
-                } label: {
-                    Text("Record my own rhythm")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Text("Three or more taps in your own timing. Accidental bumps won't match it, so this is the safe choice.")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            Divider()
-
-            Text("Or just count taps").font(.caption).foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                ForEach([1, 2, 3], id: \.self) { count in
-                    Button("\(count) tap\(count == 1 ? "" : "s")") {
-                        choose(KnockPattern(fixedCount: count))
+        case .name:
+            SheetScaffold(title: "New Rhythm") {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Name this knock").font(.largeTitle).bold()
+                        Text("So you can tell it apart from your other rhythms.")
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
+                    TextField("e.g. Open Brave", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.title3)
+                    if let clashMessage {
+                        Text(clashMessage).foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } footer: {
+                Button("Cancel", action: onDone).keyboardShortcut(.cancelAction)
+                Button("Save") { save() }.buttonStyle(.borderedProminent)
+            }
+
+        default:
+            editForm
+        }
+    }
+
+    private var editForm: some View {
+        SheetScaffold(title: name.isEmpty ? "Edit Knock" : name) {
+            VStack(alignment: .leading, spacing: 22) {
+                Text("Edit knock").font(.largeTitle).bold()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("NAME").font(.caption2).fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    TextField("Name", text: $name).textFieldStyle(.roundedBorder)
+                }
+
+                row("DOES", value: action.map { ActionCatalog.card(for: $0).title } ?? "Not set",
+                    button: "Change") { step = .action }
+
+                row("KNOCK", value: pattern?.summary ?? "Not set",
+                    button: "Re-record") { step = .record }
+
+                if let clashMessage {
+                    Text(clashMessage).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            Text("Simpler, but any taps of that number will trigger it — including ones you didn't mean.")
-                .font(.caption2).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            if let clashMessage {
-                Text(clashMessage).font(.caption).foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-            }
+        } footer: {
+            Button("Cancel", action: onDone).keyboardShortcut(.cancelAction)
+            Button("Save") { save() }
+                .buttonStyle(.borderedProminent)
+                .disabled(pattern == nil || action == nil)
         }
-        .padding().frame(width: 300)
+    }
+
+    private func row(_ label: String, value: String, button: String,
+                     action: @escaping () -> Void) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label).font(.caption2).fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Text(value).font(.body)
+            }
+            Spacer()
+            Button(button, action: action)
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.05),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func choose(_ p: KnockPattern) {
@@ -118,45 +136,8 @@ struct KnockEditorView: View {
         step = existing == nil ? .action : .edit
     }
 
-    private var editForm: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Edit knock").font(.headline)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Name").font(.caption).foregroundStyle(.secondary)
-                TextField("Name", text: $name).textFieldStyle(.roundedBorder)
-            }
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Opens").font(.caption).foregroundStyle(.secondary)
-                    Text(action?.label ?? "Not set")
-                }
-                Spacer()
-                Button("Change") { step = .action }
-            }
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Knock").font(.caption).foregroundStyle(.secondary)
-                    Text(pattern?.summary ?? "Not set")
-                }
-                Spacer()
-                Button("Change") { step = .kind }
-            }
-
-            if let clashMessage { Text(clashMessage).font(.caption).foregroundStyle(.red) }
-            Divider()
-            HStack {
-                Spacer()
-                Button("Save") { save() }.disabled(pattern == nil || action == nil)
-            }
-        }
-        .padding(20).frame(width: 340)
-    }
-
     private func defaultName(for action: KnockAction) -> String {
-        "Open \(action.label)"
+        ActionCatalog.card(for: action).title
     }
 
     private func clashText(for pattern: KnockPattern) -> String? {

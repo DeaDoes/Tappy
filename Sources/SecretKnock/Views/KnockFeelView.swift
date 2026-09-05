@@ -61,9 +61,8 @@ struct KnockFeelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Knock Feel").font(.subheadline)
             Text("Choose how firmly you want to tap. The trigger mark shows when Tappy will fire.")
-                .font(.caption2).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(.secondary)
 
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(KnockFeel.allCases) { presetButton($0) }

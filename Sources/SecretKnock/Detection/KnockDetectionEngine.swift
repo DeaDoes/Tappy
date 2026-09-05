@@ -24,10 +24,35 @@ class KnockDetectionEngine {
     /// Whether a gap between two taps is one the matcher could still wait through.
     static func acceptsGap(_ gap: TimeInterval) -> Bool { gap <= maxRecordGap }
 
+    /// The most taps any saved knock could need.
+    ///
+    /// Reaching it means no longer pattern exists to wait for, so the settle
+    /// delay would only be latency the user feels. Zero when nothing is saved,
+    /// which disables the shortcut rather than firing on the first tap.
+    static func longestSavedKnock(in config: AppConfig) -> Int {
+        let fromKnocks = config.mappings.map { $0.pattern.tapCount }.max() ?? 0
+        let fromRules = config.contextAwareGestures
+            ? (config.contextRules.map(\.tapCount).max() ?? 0)
+            : 0
+        return max(fromKnocks, fromRules)
+    }
+
     /// Long enough to wait through the biggest pause any saved knock contains.
     static func settleDelay(for mappings: [KnockMapping]) -> TimeInterval {
         let longestPause = (mappings.flatMap { $0.pattern.intervals }.max() ?? 0) / 1000
         return min(max(minSettle, longestPause * settleHeadroom), maxSettle)
+    }
+
+    /// The app rule this knock should run, if any. Matched on tap count alone
+    /// and checked before everything else: the point of the feature is that the
+    /// same knock means something different while that app is in front, so a
+    /// rule overrides a recorded rhythm of the same length too.
+    static func contextRule(matching incoming: KnockPattern, in config: AppConfig,
+                            frontmostBundleID: String?) -> ContextRule? {
+        guard config.contextAwareGestures, let front = frontmostBundleID else { return nil }
+        return config.contextRules.first {
+            $0.bundleID == front && $0.tapCount == incoming.tapCount
+        }
     }
 
     private let maxTaps = 16
@@ -57,6 +82,16 @@ class KnockDetectionEngine {
         // evaluate() may not run for a long time. Cap the buffer.
         if recentTaps.count > maxTaps { recentTaps.removeFirst() }
 
+        // Nothing saved is longer than what has already been knocked, so no
+        // further tap could change the answer — act now instead of making the
+        // user wait out a delay that exists only to let a longer knock finish.
+        let longest = Self.longestSavedKnock(in: config)
+        if longest > 0, recentTaps.count >= longest {
+            settleWork?.cancel()
+            evaluate()
+            return
+        }
+
         // Wait for a quiet gap before matching, so a 4-tap knock finishes
         // instead of a 3-tap knock firing on its way through.
         settleWork?.cancel()
@@ -73,6 +108,15 @@ class KnockDetectionEngine {
         guard !taps.isEmpty else { return }
 
         let incoming = KnockPattern(taps: taps)
+
+        // An app-specific rule wins outright, over the slots and over a
+        // recorded rhythm of the same length.
+        if let rule = Self.contextRule(matching: incoming, in: config,
+                                       frontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
+            ActionLauncher.launch(rule.action)
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+            return
+        }
 
         // Exact tap count, so a 3-tap and a 4-tap knock can't be confused. Fires
         // every match, which only exceeds one when shared rhythm is on.

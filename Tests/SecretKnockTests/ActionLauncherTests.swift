@@ -18,10 +18,10 @@ final class ActionLauncherTests: XCTestCase {
     }
 
     func test_url_normalization() {
-        XCTAssertEqual(ActionPickerView.normalizedURL("example.com")?.scheme, "https")
-        XCTAssertEqual(ActionPickerView.normalizedURL("https://example.com")?.scheme, "https")
-        XCTAssertEqual(ActionPickerView.normalizedURL("mailto:a@b.com")?.scheme, "mailto")
-        XCTAssertNil(ActionPickerView.normalizedURL("   "))
+        XCTAssertEqual(ActionConfigurator.normalizedURL("example.com")?.scheme, "https")
+        XCTAssertEqual(ActionConfigurator.normalizedURL("https://example.com")?.scheme, "https")
+        XCTAssertEqual(ActionConfigurator.normalizedURL("mailto:a@b.com")?.scheme, "mailto")
+        XCTAssertNil(ActionConfigurator.normalizedURL("   "))
     }
 
     func test_action_labels() {

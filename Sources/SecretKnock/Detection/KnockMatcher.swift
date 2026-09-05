@@ -22,10 +22,17 @@ enum KnockMatcher {
     static func clash(with pattern: KnockPattern, in mappings: [KnockMapping], excluding id: UUID? = nil) -> KnockMapping? {
         mappings.first {
             guard $0.id != id, $0.pattern.tapCount == pattern.tapCount else { return false }
-            // A fixed-count knock swallows every rhythm of the same length, in
-            // both directions — "any 3 taps" and a recorded 3-tap rhythm can
-            // never coexist, whichever was saved first.
-            if $0.pattern.isFixedCount || pattern.isFixedCount { return true }
+            // Stacking a fixed-count knock with a rhythm of the same length is
+            // deliberate, not a mistake: it is how one knock runs several
+            // actions at once. Both fire, and neither blocks saving the other.
+            //
+            // A clash here is only ever the ambiguous case — two recorded
+            // rhythms so alike that performing one also matches the other, so
+            // the user cannot choose between them.
+            // Only the mixed pair is exempt. Two fixed counts of the same
+            // length are the one case that really is indistinguishable —
+            // "any 3 taps" twice over — so that still clashes.
+            if $0.pattern.isFixedCount != pattern.isFixedCount { return false }
             return matches(pattern, against: $0.pattern)
         }
     }
