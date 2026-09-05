@@ -58,6 +58,7 @@ final class UpdateChecker: ObservableObject {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
     }
 
+
     /// Checks now and once a day after that. Silent: a failed check never
     /// interrupts anyone, it just tries again tomorrow.
     /// True when this launch is the one straight after an update installed, so

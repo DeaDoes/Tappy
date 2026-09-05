@@ -6,8 +6,17 @@ set -e
 APP="Tappy.app"
 BINARY="SecretKnock"   # the executableTarget name in Package.swift
 ICON="Resources/AppIcon.icns"
-VERSION="${VERSION:-1.0}"   # release.yml passes the git tag; local builds stay 1.0
-BUILD="${BUILD:-1}"
+# release.yml passes VERSION from the git tag it was triggered by. Locally,
+# fall back to the newest tag reachable from HEAD rather than a hardcoded 1.0 —
+# a build that always claims to be 1.0 makes the in-app version meaningless and
+# makes the updater offer an "update" to every release that ever shipped.
+if [ -z "$VERSION" ]; then
+    TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+    VERSION="${TAG#v}"
+    VERSION="${VERSION:-1.0}"   # no tags yet, e.g. a fresh clone
+fi
+# Commit count, so two builds of the same tag are still tellable apart.
+BUILD="${BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 
 # Checked before the rm -rf below, so a missing icon can't leave you with the
 # old bundle deleted and no new one built.

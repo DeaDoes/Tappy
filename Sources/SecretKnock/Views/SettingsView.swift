@@ -54,7 +54,7 @@ struct SettingsView: View {
     private var updateRow: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Tappy \(UpdateChecker.currentVersion)")
+                Text(UpdateChecker.currentVersion)
                 if case .failed(let why) = updates.state {
                     Text(why).font(.caption).foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
