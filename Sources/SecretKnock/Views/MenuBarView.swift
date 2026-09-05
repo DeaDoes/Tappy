@@ -61,9 +61,13 @@ struct MenuBarView: View {
     private var statusText: String {
         if config.mappings.isEmpty { return "No knocks set" }
         let count = "\(config.mappings.count) knock\(config.mappings.count == 1 ? "" : "s")"
+        // "Ready", not "Listening": nothing is heard. Tappy feels the knock in
+        // the case through the motion sensor, and saying otherwise implies a
+        // microphone it no longer uses.
+        //
         // Worth saying out loud: on a Mac without the sensor the app still
         // works, but only from trackpad clicks — tapping the case does nothing.
-        return usingTrackpadFallback ? "Trackpad mode · \(count)" : "Listening · \(count)"
+        return usingTrackpadFallback ? "Trackpad mode · \(count)" : "Ready · \(count)"
     }
 }
 
