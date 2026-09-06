@@ -31,8 +31,9 @@ ln -s /Applications "$STAGING/Applications"   # the drag-here target
 
 # Two reps in one TIFF so the wallpaper stays sharp on Retina as well as 1x.
 echo "Rendering wallpaper..."
-VERSION=$(defaults read "$(pwd)/$APP/Contents/Info" CFBundleShortVersionString)
-sed "s/__VERSION__/$VERSION/" "$BG_SVG" > "$STAGING/.background/bg.svg"
+# No version in the wallpaper: it would be one more place to drift, and the
+# app already reports its own version in the UI and its Info.plist.
+cp "$BG_SVG" "$STAGING/.background/bg.svg"
 sips -s format png "$STAGING/.background/bg.svg" --out "$STAGING/.background/bg.png"    --resampleHeightWidth $H $W >/dev/null
 sips -s format png "$STAGING/.background/bg.svg" --out "$STAGING/.background/bg@2x.png" --resampleHeightWidth $((H*2)) $((W*2)) >/dev/null
 rm "$STAGING/.background/bg.svg"
