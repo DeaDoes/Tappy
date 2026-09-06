@@ -1,49 +1,52 @@
 # Shipping Tappy
 
-These two steps need your own assets / Apple Developer account, so they aren't in code.
+Releases are built by `.github/workflows/release.yml`, triggered by a version tag:
 
-## 1. App icon
+```bash
+git tag v1.5 && git push origin v1.5
+```
 
-You need a 1024×1024 PNG of the icon (design it, or generate one).
+That runs `build-app.sh` (binary + Info.plist + signature) then `make-dmg.sh`, and
+publishes `Tappy.dmg` to the public `DeaDoes/tappy-downloads` repo. Nothing is done
+in Xcode; there is no Xcode project.
 
-In Xcode:
-1. If you don't have an asset catalog yet: File → New → File → Asset Catalog → name it `Assets.xcassets`, add it to the SecretKnock target.
-2. Open `Assets.xcassets` → right-click → New Image Set → rename to `AppIcon` (or add a dedicated macOS App Icon set).
-3. Drag your 1024×1024 PNG in. Xcode generates the smaller sizes.
-4. Target → General → App Icon → select `AppIcon`.
+## Icons
 
-Menu-bar glyph (the small icon up top) already uses the SF Symbol `hand.tap`. To use a custom one, drop a template PNG into the catalog and load it in `AppDelegate.setupStatusBar()` instead of the symbol.
+Both are files in `Resources/`, not an asset catalog:
 
-## 2. Code signing + notarization
+- `AppIcon.icns` — the app icon. `build-app.sh` refuses to build without it.
+- `dmg-bg.svg` / `dmg-DS_Store` — the disk image wallpaper and its icon layout.
+  Re-bake the `.DS_Store` locally if the wallpaper or positions change; CI replays it.
 
-Needed so other people can open Tappy without "unidentified developer" warnings. Requires a paid Apple Developer account ($99/yr).
+The menu-bar glyph is drawn in code, in `AppDelegate.markImage()`.
 
-1. **Signing identity** — in Xcode: Target → Signing & Capabilities → enable "Automatically manage signing", pick your Team. This needs a "Developer ID Application" certificate (create it in the Apple Developer portal if you don't have one).
+## Signing
 
-2. **Archive** — Product → Archive (build a Release archive of the app).
+`build-app.sh` signs with the first codesigning identity in the keychain, or whatever
+`SIGN_IDENTITY` names. CI imports one from the `SIGNING_CERT_P12` / `SIGNING_CERT_PASSWORD`
+secrets.
 
-3. **Export / notarize** — from the Organizer, Distribute App → Direct Distribution. Xcode uploads to Apple for notarization automatically and staples the ticket when approved.
+**The identity must be stable across releases.** macOS pins the Accessibility grant to the
+designated requirement; an ad-hoc signature makes that a bare `cdhash`, so every update
+silently drops the user's permission while System Settings still shows it enabled. If the
+secret is missing, CI warns and ships ad-hoc anyway — check the run log for
+`Signing identity:` before trusting a release.
 
-   Or via command line after exporting `Tappy.app`:
-   ```bash
-   # zip it
-   ditto -c -k --keepParent Tappy.app Tappy.zip
-   # submit (uses an app-specific password stored in your keychain profile)
-   xcrun notarytool submit Tappy.zip --keychain-profile "AC_PASSWORD" --wait
-   # staple the ticket onto the app
-   xcrun stapler staple Tappy.app
-   ```
+The certificate is self-signed, not a Developer ID, so downloads aren't notarized:
+first launch needs System Settings → Privacy & Security → Open Anyway. That's the
+deliberate trade for not paying $99/yr.
 
-4. **Distribute** — zip the stapled `Tappy.app` and put it on Gumroad / your site.
+Tappy also turns off the App Sandbox — raw IOHIDDevice access to the built-in
+accelerometer, plus launching arbitrary apps — so the Mac App Store isn't an option
+regardless.
 
-Note: Tappy turns off the App Sandbox (needed for raw IOHIDDevice access to the built-in accelerometer, plus launching arbitrary apps), so it can't go on the Mac App Store. Direct distribution is the path — same as Alcove.
+## Info.plist
 
-## 3. Info.plist — required keys
+SwiftPM can't embed one, so `build-app.sh` writes the bundle's plist itself. The key that
+matters:
 
-SwiftPM cannot embed an Info.plist, so `build-app.sh` writes the bundle's plist itself. The packaged `.app` MUST contain this key or it breaks:
+- `LSUIElement = YES` — menu-bar only, no Dock icon. The code also forces this via
+  `setActivationPolicy(.accessory)`.
 
-- `LSUIElement = YES` — keeps it menu-bar-only (no Dock icon). The code also forces this via `setActivationPolicy(.accessory)`, so it's belt-and-suspenders.
-
-No usage-description string is needed. Tap detection reads the accelerometer as an HID input device, which triggers no TCC prompt — the mic path that required `NSMicrophoneUsageDescription` is gone.
-
-When you make a real app target in Xcode, set its Info.plist (or the `INFOPLIST_KEY_LSUIElement` build setting) accordingly.
+No usage-description string is needed. Tap detection reads the accelerometer as an HID
+input device, which triggers no TCC prompt.

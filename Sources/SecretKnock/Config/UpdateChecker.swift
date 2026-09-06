@@ -4,10 +4,10 @@ import UserNotifications
 /// Asks the public download repo what the newest release is and compares it
 /// with this build.
 ///
-/// It only ever tells you; it never replaces the app. Downloading a DMG and
-/// swapping the running bundle is what Sparkle exists for, and doing it by hand
-/// on an ad-hoc signed app would hand every user a silent way to install
-/// something unverified. The button opens the release page instead.
+/// When there is one, `downloadAndInstall` fetches the release DMG, checks it
+/// was signed by whoever signed the running copy, and swaps the bundle — see
+/// `UpdateInstaller`. A release with no DMG attached falls back to opening the
+/// release page.
 @MainActor
 final class UpdateChecker: ObservableObject {
     static let shared = UpdateChecker()
