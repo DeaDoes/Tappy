@@ -42,6 +42,10 @@ jobs:
           echo "$CERT_P12" | base64 --decode > /tmp/cert.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
+          # Also the search list, not just the default: codesign looks up the
+          # identity by searching, and a keychain that is only "default" isn't
+          # searched.
+          security list-keychains -d user -s build.keychain login.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           # No timeout, or the keychain relocks partway through a long build.
           security set-keychain-settings build.keychain
@@ -51,7 +55,11 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" build.keychain >/dev/null
           rm -f /tmp/cert.p12
-          IDENTITY="$(security find-identity -v -p codesigning build.keychain \
+          # No -v: that filters to identities the machine *trusts*, and a
+          # self-signed certificate on a fresh runner is never trusted, so -v
+          # reports zero even though the import succeeded. Trust matters for
+          # verifying a signature, not for making one.
+          IDENTITY="$(security find-identity -p codesigning build.keychain \
             | awk -F'"' '/"/{print $2; exit}')"
           [ -n "$IDENTITY" ] || { echo "Certificate imported but no codesigning identity found"; exit 1; }
           echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
