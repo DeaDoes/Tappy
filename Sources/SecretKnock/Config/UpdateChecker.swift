@@ -47,8 +47,11 @@ final class UpdateChecker: ObservableObject {
         }
     }
 
-    static let releasesPage = URL(string: "https://github.com/DeaDoes/tappy-downloads/releases/latest")!
-    private static let api = URL(string: "https://api.github.com/repos/DeaDoes/tappy-downloads/releases/latest")!
+    // Releases live in the main repo. Builds up to 1.5 point at the old
+    // DeaDoes/tappy-downloads instead, so that repo keeps its releases: an
+    // updater still asking it gets "up to date" rather than a 404 loop.
+    static let releasesPage = URL(string: "https://github.com/DeaDoes/Tappy/releases/latest")!
+    private static let api = URL(string: "https://api.github.com/repos/DeaDoes/Tappy/releases/latest")!
     private static let interval: TimeInterval = 60 * 60 * 24
 
     private var timer: Timer?

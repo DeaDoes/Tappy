@@ -11,6 +11,10 @@ on:
 jobs:
   release:
     runs-on: macos-15
+    # Lets the built-in GITHUB_TOKEN create the release. Nothing else needs
+    # write access, so it stays at the default read everywhere else.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -86,16 +90,15 @@ jobs:
           grep -q "bg.tiff" /tmp/tappy/.DS_Store || { echo "layout missing"; exit 1; }
           hdiutil detach /tmp/tappy >/dev/null
 
-      # Published to the PUBLIC repo, because release assets on a private repo
+      # Published here, in this repo. It used to go to a separate public
+      # DeaDoes/tappy-downloads repo, because release assets on a private repo
       # need an auth token to download and the website button must be a plain
-      # link. RELEASE_TOKEN is a fine-grained PAT with contents:write on
-      # DeaDoes/tappy-downloads.
-      - name: Publish to the public download repo
+      # link — moot now that this repo is public.
+      - name: Publish the release
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.v.outputs.version }}   # via env, never interpolated into the shell
         run: |
           gh release create "$GITHUB_REF_NAME" Tappy.dmg \
-            --repo DeaDoes/tappy-downloads \
             --title "Tappy $VERSION" \
             --notes "macOS 13 or later. Download Tappy.dmg, drag it into Applications."

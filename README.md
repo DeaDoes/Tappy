@@ -74,6 +74,16 @@ Reading the accelerometer as a raw HID device is incompatible with the App
 Sandbox, and Tappy also launches arbitrary apps. Direct distribution is the
 only path.
 
+## Contributing
+
+Pull requests welcome. The short version: `swift test` must pass before you
+open one, no new dependencies, one change per PR, and comments explain *why*
+rather than *what*.
+
+The longer version — house style, the `IsolatedConfigTestCase` rule, the
+signing and DMG-layout traps that will bite you — is in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
