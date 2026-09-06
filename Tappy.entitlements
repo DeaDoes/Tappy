@@ -4,8 +4,9 @@
 <dict>
     <!-- Deliberately empty. Tappy reads the built-in accelerometer as a raw
          IOHIDDevice, which needs no entitlement of its own but is not
-         compatible with the App Sandbox — so this ships Developer ID signed
-         and notarized with the hardened runtime, outside the Mac App Store.
+         compatible with the App Sandbox — so this ships with the hardened
+         runtime, self-signed and not notarized, outside the Mac App Store.
+         First launch needs Privacy & Security → Open Anyway.
          Adding com.apple.security.app-sandbox here would break detection. -->
 </dict>
 </plist>
