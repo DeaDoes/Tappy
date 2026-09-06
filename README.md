@@ -55,7 +55,7 @@ replaces anything.
 
 ```bash
 swift build -c release     # binary only
-swift test                 # 73 tests, no network or hardware needed
+swift test                 # no network or hardware needed
 ./build-app.sh             # assembles Tappy.app with Info.plist + signature
 ./make-dmg.sh              # packages Tappy.dmg with the install window
 ```

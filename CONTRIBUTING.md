@@ -25,9 +25,9 @@ Macs. The test suite does not need that hardware.
 swift test
 ```
 
-All 73 tests must pass. **Nothing checks this for you** — the only workflow in
-this repo is `release.yml`, which runs on version tags, not on pull requests.
-If your PR breaks a test, a human has to notice.
+The whole suite must pass. **Nothing checks this for you** — the only workflow
+in this repo is `release.yml`, which runs on version tags, not on pull
+requests. If your PR breaks a test, a human has to notice.
 
 ## What we look for
 
