@@ -35,6 +35,13 @@ struct SettingsView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
 
+                    Section {
+                        Button("Replay walkthrough") { WelcomeWindow.show() }
+                        Text("The first-run tour, again. Its last step reassigns Triple Knock, "
+                             + "so anything you have there now will be replaced.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+
                     Section("Updates") {
                         Toggle("Check for updates automatically", isOn: $config.automaticUpdateChecks)
                         updateRow

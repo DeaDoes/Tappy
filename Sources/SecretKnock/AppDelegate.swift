@@ -48,8 +48,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Settings page can say what happened.
         let justUpdated = UpdateChecker.shared.consumeUpdateResult()
 
-        if justUpdated || config.isFirstLaunch || config.mappings.isEmpty {
-            config.isFirstLaunch = false
+        // A brand-new install gets the walkthrough instead of the settings
+        // window: it ends by saving a working knock and firing it, which is a
+        // better first minute than an empty list of slots. It clears
+        // `isFirstLaunch` itself, when the user finishes or skips it.
+        if config.isFirstLaunch {
+            WelcomeWindow.show()
+        } else if justUpdated || config.mappings.isEmpty {
             openSettings()
         }
     }
