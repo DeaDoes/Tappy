@@ -74,7 +74,19 @@ fi
 # (No --deep: deprecated, and there's no nested code.)
 if [ -n "$SIGN_IDENTITY" ]; then
     echo "Signing as: $SIGN_IDENTITY"
-    codesign --force --options runtime --entitlements Tappy.entitlements \
+    # --timestamp is load-bearing, not polish. The signing certificate expires,
+    # and without a secure timestamp macOS cannot tell "signed while valid" from
+    # "signed after expiry" — so on the day the certificate lapses, every
+    # signature made with it stops verifying. The updater runs `codesign
+    # --verify` on each download, so that day it starts rejecting every update
+    # for every user, silently, with no code change to blame.
+    #
+    # A secure timestamp pins the signing time to Apple's timestamp authority,
+    # which keeps the signature valid past the certificate's own expiry. It
+    # works with a self-signed identity: the timestamp covers the signature, not
+    # the trust chain. It does need network at build time — that is the only
+    # cost, and an offline build failing loudly beats a silent 2027 outage.
+    codesign --force --options runtime --timestamp --entitlements Tappy.entitlements \
         --sign "$SIGN_IDENTITY" "$APP"
 else
     echo "WARNING: no codesigning identity found — signing ad-hoc."
@@ -87,6 +99,20 @@ fi
 echo "Designated requirement:"
 # Ad-hoc prints "# designated =>", a real signature prints "designated =>".
 codesign -d -r- "$APP" 2>&1 | sed -n 's/^#* *designated => /  /p'
+
+# codesign says "Timestamp=" for a secure one and "Signed Time=" for the build
+# machine's clock, which proves nothing. Checked rather than assumed: the
+# difference is invisible until the certificate expires, by which point every
+# release carrying it is already out there.
+if [ -n "$SIGN_IDENTITY" ]; then
+    if codesign -dvv "$APP" 2>&1 | grep -q '^Timestamp='; then
+        echo "Secure timestamp: yes (signature outlives the certificate)"
+    else
+        echo "ERROR: signed without a secure timestamp — the updater will reject"
+        echo "       this build once the signing certificate expires."
+        exit 1
+    fi
+fi
 
 echo ""
 echo "Done → $(pwd)/$APP"
