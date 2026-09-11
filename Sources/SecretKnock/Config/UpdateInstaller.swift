@@ -167,25 +167,52 @@ enum UpdateInstaller {
         let script = FileManager.default.temporaryDirectory
             .appendingPathComponent("tappy-update-\(UUID().uuidString).sh")
 
-        // Waits for this process to exit before touching the bundle, or ditto
-        // would be copying over a binary that is still mapped and running.
+        // Paths arrive as arguments, never interpolated into the script text: a
+        // bundle path may legally contain a quote, a `$` or a backtick, and one
+        // of the commands below is `rm -rf`. Interpolating `/Users/x/My "Mac"
+        // Apps/Tappy.app` re-splits that line and deletes `/Users/x/My`.
+        //
+        // Only the pid is substituted, and only because it is an integer.
+        //
+        // The old bundle is moved aside rather than deleted, and only removed
+        // once the new one is in place. Deleting first means any failure of the
+        // copy — a full disk, a staged bundle the OS cleaned out of /tmp —
+        // leaves the user with no app at all and nothing to roll back to.
         let body = """
         #!/bin/sh
+        DEST="$1"
+        STAGED="$2"
+        STAGING_DIR="$3"
         while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done
-        rm -rf "\(destination.path)"
-        /usr/bin/ditto "\(staged.path)" "\(destination.path)"
-        # The download carries a quarantine flag; without clearing it the app
-        # the user just chose to install is blocked on first launch.
-        /usr/bin/xattr -dr com.apple.quarantine "\(destination.path)" 2>/dev/null
-        rm -rf "\(staged.deletingLastPathComponent().path)"
-        /usr/bin/open "\(destination.path)"
-        rm -f "$0"
+
+        BACKUP="$DEST.tappy-old-$$"
+        /bin/mv "$DEST" "$BACKUP" || exit 1
+
+        if /usr/bin/ditto "$STAGED" "$DEST"; then
+            # The download carries a quarantine flag; without clearing it the
+            # app the user just chose to install is blocked on first launch.
+            /usr/bin/xattr -dr com.apple.quarantine "$DEST" 2>/dev/null
+            /bin/rm -rf "$BACKUP"
+        else
+            # Put the working copy back, so a failed update is a no-op.
+            /bin/rm -rf "$DEST"
+            /bin/mv "$BACKUP" "$DEST"
+        fi
+
+        /bin/rm -rf "$STAGING_DIR"
+        /usr/bin/open "$DEST"
+        /bin/rm -f "$0"
         """
         try body.write(to: script, atomically: true, encoding: .utf8)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = [script.path]
+        process.arguments = [
+            script.path,
+            destination.path,
+            staged.path,
+            staged.deletingLastPathComponent().path,
+        ]
         do { try process.run() } catch {
             // Nothing was replaced yet, so failing here is safe to report.
             fatalErrorReporting(error)
