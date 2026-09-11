@@ -30,6 +30,10 @@ final class AccelerometerTapDetector {
     private static let matchTimeout: TimeInterval = 2.5
     /// A hit rings for a few ms; ignore everything inside this after one fires.
     private static let cooldown: TimeInterval = 0.12
+    /// How often to confirm the stream is still running. Measured idle rate is
+    /// ~795 Hz and flat, so any tick with zero new reports is a real stall, not
+    /// a quiet moment — nothing the user does can make the sensor go silent.
+    private static let watchdogInterval: TimeInterval = 5
     /// While you are typing, Tappy stays out of the way entirely.
     ///
     /// This is the *only* thing separating typing from tapping — amplitude
@@ -52,10 +56,10 @@ final class AccelerometerTapDetector {
     }
 
     private var manager: IOHIDManager?
-    /// Two nodes match 0xFF00/3 on Apple Silicon — an SPU one that carries no
-    /// data and a FIFO one that streams the reports. They are not distinguishable
-    /// by any property worth branching on, so open both and let whichever
-    /// actually delivers 22-byte reports drive detection.
+    /// Two nodes match 0xFF00/3 on Apple Silicon: the sensor, which streams
+    /// 22-byte reports, and the internal keyboard/trackpad, which streams
+    /// 108-byte ones. `MaxInputReportSize` is what tells them apart — see
+    /// `open(_:)`. Only the sensor is ever opened, so this holds one device.
     private var devices: [IOHIDDevice] = []
     /// Must outlive the callback registration, so it can't be a local array.
     private let reportBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 256)
@@ -70,6 +74,16 @@ final class AccelerometerTapDetector {
     private var noiseCeiling: Double = 0
     private var isCalibrated = false
     private var reportCount = 0
+    /// `reportCount` as of the last watchdog tick, to spot a stream that stopped.
+    private var lastWatchdogCount = 0
+    /// True once this Mac has proven it has a working sensor.
+    ///
+    /// Separates the two reasons for silence, which need opposite responses.
+    /// Before it: the hardware may simply not be there, and the trackpad is the
+    /// only thing left. After it: the hardware is known good, so silence is a
+    /// stall to keep reopening through — dropping to the trackpad there would
+    /// turn every mouse click in every app into a tap.
+    private var sensorEverDelivered = false
 
     /// True once the HID node failed to appear and we fell back to the trackpad.
     private(set) var isUsingTrackpadFallback = false
@@ -117,21 +131,92 @@ final class AccelerometerTapDetector {
 
         // The manager stays silent on hardware without the sensor: no error, no
         // callback. Only a timeout distinguishes "not here" from "not yet".
+        // Both checks below decide this Mac has no usable sensor, so neither may
+        // run on a reopen — a restart that takes a moment to deliver is not a
+        // Mac without an accelerometer. See `sensorEverDelivered`.
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.matchTimeout) { [weak self] in
-            guard let self, self.generation == session, self.devices.isEmpty else { return }
+            guard let self, self.generation == session, !self.sensorEverDelivered,
+                  self.devices.isEmpty else { return }
             self.enableTrackpadFallback(reason: "no matching HID device within \(Self.matchTimeout)s")
         }
 
-        // A node can match and open cleanly and still deliver nothing — one of
-        // the two that match here does exactly that. Without this the app looks
-        // healthy in the log and silently never detects a tap.
+        // A node can match and open cleanly and still deliver nothing. Without
+        // this the app looks healthy in the log and silently never detects a tap.
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.matchTimeout + Self.calibrationWindow) { [weak self] in
-            guard let self, self.generation == session, self.reportCount == 0 else { return }
+            guard let self, self.generation == session, !self.sensorEverDelivered,
+                  self.reportCount == 0 else { return }
             self.enableTrackpadFallback(reason: "device opened but delivered no reports")
+        }
+
+        lastWatchdogCount = 0
+        scheduleWatchdog(session: session)
+    }
+
+    /// A stream that was running can stop with no error and no callback — the
+    /// node stays open and simply goes quiet, and the app is then deaf for the
+    /// rest of the session with nothing in the log to say so. The startup checks
+    /// above can't catch that: they run once, before the stall.
+    private func scheduleWatchdog(session: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.watchdogInterval) { [weak self] in
+            guard let self, self.generation == session, !self.isUsingTrackpadFallback else { return }
+            defer { self.scheduleWatchdog(session: session) }
+
+            // A reopen resets the count to zero, so a reopen that delivered
+            // nothing reads as stalled here and gets reopened again. That is the
+            // intent: this only ever runs on a Mac whose sensor has worked, so
+            // retrying is the only way back — there is no trackpad to fall to.
+            guard Self.hasStalled(reportCount: self.reportCount, since: self.lastWatchdogCount) else {
+                self.lastWatchdogCount = self.reportCount
+                return
+            }
+            Self.log.notice("sensor went silent after \(self.reportCount) reports — reopening")
+            self.restart()
         }
     }
 
+    /// The stall rule, kept pure so it can be asserted directly: the sensor free-runs,
+    /// so a whole interval with no new report means the stream stopped.
+    static func hasStalled(reportCount: Int, since previous: Int) -> Bool {
+        reportCount == previous
+    }
+
+    /// Only ever a `MaxInputReportSize` of 22 — see `open(_:)`.
+    static func isSensor(reportSize: Int) -> Bool { reportSize == reportLength }
+
+    /// Close everything and open it again from scratch, calibration included:
+    /// whatever the sensor's state is after a stall, it isn't the one the old
+    /// noise floor was measured in.
+    private func restart() {
+        for device in devices {
+            IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
+        }
+        devices = []
+        if let manager {
+            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        }
+        manager = nil
+
+        lastAxes = nil
+        calibrationSamples = []
+        isCalibrated = false
+        reportCount = 0
+
+        // Bumps `generation`, so the watchdog chain that called this retires and
+        // a fresh one takes over with the new session.
+        if let onTap { start(onTap: onTap) }
+    }
+
     private func open(_ device: IOHIDDevice) {
+        // The second node matching 0xFF00/3 is the Apple Internal Keyboard /
+        // Trackpad, which streams 108-byte reports of its own. Its report size
+        // is the only thing that separates the two, so filter on that and never
+        // open it: it costs a needless Input Monitoring grant, and its traffic
+        // is high-rate noise this callback would drop 800 times a second.
+        let reportSize = (IOHIDDeviceGetProperty(device, kIOHIDMaxInputReportSizeKey as CFString) as? Int) ?? 0
+        guard Self.isSensor(reportSize: reportSize) else {
+            Self.log.info("skipping a matching device with a \(reportSize)-byte report")
+            return
+        }
         Self.log.info("matched accelerometer device")
 
         let status = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -162,6 +247,7 @@ final class AccelerometerTapDetector {
             // Anchored to the first report, not to start(): a slow device match
             // would otherwise eat most of the window and calibrate off nothing.
             calibrationDeadline = Date.timeIntervalSinceReferenceDate + Self.calibrationWindow
+            sensorEverDelivered = true
             Self.log.info("first report received; calibrating noise floor for \(Self.calibrationWindow)s")
         }
         reportCount += 1
