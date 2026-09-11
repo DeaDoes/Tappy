@@ -55,13 +55,15 @@ enum ActionLauncher {
             guard !command.trimmingCharacters(in: .whitespaces).isEmpty else { return failed(action) }
             return run("/bin/sh", ["-c", command])
 
-        case .glitch:      ReactionOverlay.play(.glitch); return true
-        case .shockwave:   ReactionOverlay.play(.shockwave); return true
-        case .screenFlash: ReactionOverlay.play(.flash); return true
+        // Reported honestly rather than always true: with no attached display
+        // there is nothing to draw on, and claiming success there hides a knock
+        // that visibly did nothing.
+        case .glitch:      return ReactionOverlay.play(.glitch)
+        case .shockwave:   return ReactionOverlay.play(.shockwave)
+        case .screenFlash: return ReactionOverlay.play(.flash)
         case .showText(let text):
             guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return failed(action) }
-            ReactionOverlay.play(.text(text))
-            return true
+            return ReactionOverlay.play(.text(text))
         }
     }
 

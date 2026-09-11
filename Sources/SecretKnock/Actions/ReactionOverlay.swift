@@ -20,13 +20,21 @@ enum ReactionOverlay {
 
     private static var window: NSWindow?
 
-    static func play(_ effect: Effect) {
+    /// False when there was no screen to draw on, so callers can report the
+    /// action as having failed instead of silently claiming it ran.
+    @discardableResult
+    static func play(_ effect: Effect) -> Bool {
         // Replace rather than stack: a second knock during an effect should
         // restart it, not leave two transparent windows over the screen.
         window?.orderOut(nil)
-        guard let screen = NSScreen.main else { return }
 
-        let panel = NSPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+        // Every display, not just the main one. On a laptop plus an external
+        // monitor the main screen is wherever the menu bar is, which is
+        // routinely not the screen the user is looking at — so a flash there
+        // reads as the knock having done nothing.
+        guard let frame = unionOfScreens else { return false }
+
+        let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -35,7 +43,7 @@ enum ReactionOverlay {
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.contentView = NSHostingView(rootView: ReactionView(effect: effect))
-        panel.setFrame(screen.frame, display: true)
+        panel.setFrame(frame, display: true)
         panel.orderFrontRegardless()
         window = panel
 
@@ -45,6 +53,16 @@ enum ReactionOverlay {
             if window === panel { window = nil }
             panel.orderOut(nil)
         }
+        return true
+    }
+
+    /// One rectangle covering every attached display, or nil when there are
+    /// none — which happens for real during a display reconfiguration and in
+    /// clamshell mode with the external monitor asleep.
+    private static var unionOfScreens: NSRect? {
+        let frames = NSScreen.screens.map(\.frame)
+        guard let first = frames.first else { return nil }
+        return frames.dropFirst().reduce(first) { $0.union($1) }
     }
 }
 
